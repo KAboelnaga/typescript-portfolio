@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('/fonts/BricolageGrotesque-Variable.woff2') format('woff2-variations');
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('/fonts/InstrumentSans-Variable.woff2') format('woff2-variations');
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Variable.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Pre-JS bootstrap only — theme/ThemeContext.tsx overwrites these inline
+   via style.setProperty() the instant it mounts (before paint), reading
+   from theme/tokens.ts. Keep this block matching tokens.ts's `color`
+   export by hand; it only matters for the brief window before React
+   hydrates, or if JS never runs at all. */
+:root {
+  color-scheme: dark;
+  --color-void: #0a0d12;
+  --color-base: #111721;
+  --color-surf-1: #171e29;
+  --color-surf-2: #1e2733;
+  --color-surf-3: #26303d;
+  --color-text-hi: #e4e7eb;
+  --color-text-mid: #a3acba;
+  --color-text-low: #6b7685;
+  --color-lamp: #d99a45;
+  --color-lamp-glow: #8a5f2a;
+  --color-signal: #52a398;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  margin: 0;
+  background-color: theme('colors.base');
+  color: theme('colors.text-mid');
+  font-family: theme('fontFamily.body');
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  animation: page-fade-in 0.6s ease-out;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+h1,
+h2,
+h3 {
+  font-family: theme('fontFamily.display');
+  color: theme('colors.text-hi');
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid theme('colors.signal');
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* TechSkillsSlider.tsx's marquee track — translates exactly one copy-width
+   (-50%) of a doubled list, so the loop point is seamless. */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Native cursor hidden only once CustomCursor.tsx confirms a fine pointer
+   (real mouse) and motion isn't reduced — see that file. Scoping the hide to
+   this class (rather than a blanket rule) means touch devices and
+   reduced-motion visitors never lose their cursor/tap affordance. */
+@media (pointer: fine) {
+  html.custom-cursor-active,
+  html.custom-cursor-active * {
+    cursor: none !important;
+  }
+}
