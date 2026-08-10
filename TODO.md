@@ -5,10 +5,49 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Right now: unfinished from the last session
 
-- **2026-08-10 (7), done — see DONE.md for the full writeup.** Hero
-  character now turns -90° during the intro turn to face the entrance text
-  instead of staying turned toward his monitor the whole time (both signs
-  swept on a live render before picking one). CustomCursor rewritten from a
+- **2026-08-10 (12), done — see DONE.md for the full writeup.** Contact's
+  end-turn nudged 180° → 210°, same direction as (11).
+- **2026-08-10 (11), done — see DONE.md for the full writeup.** Cursor
+  hover-outline padding back to 4px (2px read as too tight). Contact's
+  end-turn taken to 180° (from (10)'s 90°) — kept turning the same
+  direction (10)'s sign flip went instead of reverting to (9)'s, since 90°
+  was still the wrong way; 180° now shows him facing the camera dead-on,
+  full face visible, monitor behind him.
+- **2026-08-10 (10), done — see DONE.md for the full writeup.** Cursor
+  hover-outline padding narrowed again, 4px → 2px. Contact's end-turn back
+  up to 90° (from (9)'s 30°) and flipped to the opposite direction from
+  (8)'s 90° version — same geometry-derived sign logic, just negated.
+- **2026-08-10 (9), done — see DONE.md for the full writeup.** Contact's
+  whole-object rotation (desk/monitor/character together) now pivots on
+  the *character's* own center instead of the assembly's shared center —
+  he stays roughly in place through the turn now, desk swings around him.
+  End-turn angle back down to 30° (from (8)'s 90°) — with the new pivot it
+  now reads as a real partial turn toward camera instead of the near
+  side/back view a bare 30° gave against the old pivot. GitHub/LinkedIn
+  now render real icons (`data/socialIcons.ts`). Email-copy label got
+  `ml-1` so "Email copied" doesn't sit jammed against the address. Cursor
+  hover-outline padding narrowed 10px → 4px — was reaching past a hovered
+  element into a neighbor's label in tight layouts (Navbar's `gap-1`).
+  Real reload bug found and fixed: a fast reload right after real scroll
+  input still let the browser restore the old scroll offset despite
+  `scrollRestoration = 'manual'`, landing the visitor mid-Hero-pin — fixed
+  with two more corrective `scrollTo(0,0)` reassertions (on `load`, and on
+  `onPinsReady`), confirmed with six clean repro runs after (was flaky
+  before).
+- **2026-08-10 (8), done — see DONE.md for the full writeup.** Corrects
+  (7) below: the "turn to face the text" ask was about the *Contact*
+  end-scene's whole-object turn, not Hero's — Hero's intro-turn rotation
+  reverted back to `0`. Contact's whole-object end turn changed from a
+  tuned 75° to a plain fixed 90° (same geometry-derived sign as before).
+  Also a real bug found in the same scene: drag and cursor-follow were
+  gated on scrolling all the way to the *end* of the Contact pin
+  (`progress >= 1`) rather than on the object actually finishing its turn
+  (`progress >= 0.4`, the end of the `cameraSettle` beat) — a real dead
+  zone where the scene looked fully settled but stayed non-interactive
+  until well past that. Now gated on the latter.
+- **2026-08-10 (7), done — see DONE.md for the full writeup.** ~~Hero
+  character now turns -90° during the intro turn to face the entrance
+  text~~ — reverted in (8), this was the wrong scene. CustomCursor rewritten from a
   GSAP quickTo/gsap.to hybrid to a single `requestAnimationFrame` + lerp
   loop — fixes a fourth distinct "cursor gets stuck" root cause (frozen in
   empty space right after leaving a hovered link/label), and removes the

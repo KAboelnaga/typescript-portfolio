@@ -10,7 +10,12 @@ import { useEffect, useRef } from 'react';
 // still matches via `input`.
 const HOVER_SELECTOR = 'a, button, input, textarea, select, [role="button"], [data-cursor-hover]';
 const DOT_SIZE = 10;
-const OUTLINE_PADDING = 10;
+// "The hover selection is taking place over the labels of the boxes" —
+// tightly-packed rows (Navbar's pills are only `gap-1` apart, 4px) meant a
+// 10px outline padding on the hovered element reached well past its own
+// edge and covered a neighbor's label. Narrowed 10px -> 4px -> 2px -> back
+// to 4px ("get back to 4 px") — 2px read as too tight.
+const OUTLINE_PADDING = 4;
 const OUTLINE_RADIUS = 10;
 // Lerp factors (0-1, per frame) — how much of the remaining distance to the
 // target each frame closes. Dot tracks almost 1:1; the outline eases behind

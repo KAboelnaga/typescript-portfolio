@@ -140,23 +140,27 @@ export function Character({ onReady, onSceneReady, onHeadReady }: CharacterProps
     }
 
     // A third pivot wrapping literally everything in the scene (desk,
-    // chair, monitor, and the upperBodyPivot/character built above),
-    // centered on the *whole object's* own bounding box — Kareem: "I want
-    // the object rotation when clicked upon at the end to have a fixed
-    // point in the center of the object and not on the bottom." This
-    // export's root origin sits off in a corner (roughly floor-level, not
-    // centered on the model), so rotating the raw scene directly — which
-    // is what Contact's drag-to-rotate did before this — swung the whole
+    // chair, monitor, and the upperBodyPivot/character built above).
+    // Originally centered on the *whole object's* own bounding box —
+    // Kareem: "I want the object rotation when clicked upon at the end to
+    // have a fixed point in the center of the object and not on the
+    // bottom" (this export's root origin sits off in a corner, roughly
+    // floor-level, so rotating the raw scene directly swung the whole
     // desk+character assembly through a wide arc around that corner
-    // instead of spinning in place around its own center.
-    const rootBox = new THREE.Box3().setFromObject(scene);
-    const rootCenter = rootBox.getCenter(new THREE.Vector3());
+    // instead of spinning in place). Re-centered on just the *character*
+    // (reusing `pivotPoint`, the same upper-body-parts bounding-box center
+    // computed above for `upperBodyPivot`) rather than the whole assembly
+    // — "fixate the rotation point on the center of the character, not
+    // the whole object." The desk/monitor still rotate together with him
+    // (nothing here changes which nodes get attached below), only the
+    // point everything turns around moves from the group's shared center
+    // to his.
     const rootPivot = new THREE.Group();
     rootPivot.name = 'rootPivot';
     // scene is the true root — identity transform, nothing above it with
-    // its own offset — so its world-space bounding-box center already
-    // equals what rootPivot's local position should be.
-    rootPivot.position.copy(rootCenter);
+    // its own offset — so `pivotPoint`, already in scene-local space,
+    // already equals what rootPivot's local position should be.
+    rootPivot.position.copy(pivotPoint);
     scene.add(rootPivot);
     // Snapshot scene.children first: attach() below mutates that array
     // (each reparented child) as it goes.

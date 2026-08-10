@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { fontVariation } from '../theme/tokens';
 import { ContactScene } from '../scenes/ContactScene';
+import { socialIconPaths } from '../data/socialIcons';
 
 const EMAIL = 'kaaboelnaga@gmail.com';
 const PHONE = '+20 101 993 2727';
@@ -109,7 +110,7 @@ export function Contact() {
               type="button"
               onClick={copyEmail}
               aria-label="Copy email address"
-              className="font-mono text-xs text-text-low transition-colors duration-300 hover:text-signal"
+              className="ml-1 font-mono text-xs text-text-low transition-colors duration-300 hover:text-signal"
             >
               {copied ? 'Email copied' : 'copy'}
             </button>
@@ -131,8 +132,11 @@ export function Contact() {
                 href={link.href}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 font-mono text-sm text-signal transition-colors duration-300 hover:underline"
+                className="inline-flex items-center gap-1.5 font-mono text-sm text-signal transition-colors duration-300 hover:underline"
               >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="shrink-0">
+                  <path d={socialIconPaths[link.label]} />
+                </svg>
                 {link.label}
               </a>
             </li>

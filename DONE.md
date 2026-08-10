@@ -4,6 +4,176 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-10 (12) — Contact's end-turn nudged 180° → 210°
+
+One-line follow-up on (11): "maybe rotate 30 more degrees." Same
+direction again, `CONTACT_END_YAW` now `(7 * Math.PI) / 6`. Confirmed via
+console (`sceneYaw: 3.6652`, i.e. 210°) and screenshot at the settle beat
+— a touch further past dead-on-camera than 180°, face angled a bit more
+toward camera-left.
+
+Verified: `npx tsc -b` and `npx oxlint src/` clean.
+
+## 2026-08-10 (11) — Cursor outline padding back to 4px (2px was too tight); Contact's end-turn taken to 180° (continuing the same direction rather than flipping back)
+
+Two quick follow-ups on (10).
+
+**Outline padding: 2px → 4px.** "Get back to 4px."
+
+**Contact's end-turn: 90° → 180°.** Still the wrong direction at 90° —
+Kareem: "90 more degrees in the direction you rotated it will do the
+trick," i.e. keep turning the same way (10)'s flip went, rather than
+flipping back to (9)'s sign. `CONTACT_END_YAW` is `Math.PI` now, same
+`-Math.sign(fullYaw)` direction from (10). Confirmed via console
+(`sceneYaw: 3.14159`, i.e. exactly 180°) and screenshot at the settle
+beat: he's now turned a full half-turn from his monitor-facing default,
+facing the camera directly (full face, glasses, both visible) with the
+monitor now behind him showing its back.
+
+Verified: `npx tsc -b` and `npx oxlint src/` clean. Playwright screenshots
+for both changes.
+
+## 2026-08-10 (10) — Cursor outline padding narrowed again (4px → 2px); Contact's end-turn back up to 90°, direction flipped
+
+Two quick follow-ups on (9), both direct one-line asks.
+
+**Outline padding: 4px → 2px.** "Try making it 2px." `OUTLINE_PADDING` in
+`CustomCursor.tsx`.
+
+**Contact's end-turn: 30° → 90°, other direction.** "I wanted the 90
+degrees rotation in the other direction in the end scene." `CONTACT_END_YAW`
+back to `Math.PI / 2`, and `sceneYaw`'s formula now negates the
+geometry-derived sign (`-Math.sign(fullYaw) * CONTACT_END_YAW`) instead of
+using it as-is — the real-geometry direction-picker from (6)/(8) wasn't
+wrong, Kareem just wants the opposite of what it picks. Confirmed via the
+dev console log: `sceneYaw` now reads `+1.5708` (was `-1.5708` in (8)'s
+90° version) — a mirror image of that earlier framing, verified by
+screenshot at the settle beat.
+
+Verified: `npx tsc -b` and `npx oxlint src/` clean. Playwright screenshots
+for both — Contact's settle beat (mirrored framing vs. (8)'s), and the nav
+hover outline at 2px.
+
+## 2026-08-10 (9) — Contact's whole-object rotation now pivots on the character's own center instead of the assembly's shared center, which let the turn come back down to 30° and still read correctly; GitHub/LinkedIn got real icons; email-copy label spacing; cursor outline narrowed to stop covering neighboring labels; a real, reproducible reload bug (native scroll restoration winning over `scrollRestoration = 'manual'`) fixed with two more corrective reassertions
+
+Six items, one of them (the reload bug) a real bug found and root-caused
+live, not from the report alone — first attempt at a repro (`window.scrollTo`
++ a settled wait before reloading) didn't show it; only reproducing it the
+way Kareem actually hits it (scroll, then reload immediately, no settle
+time) did.
+
+**Contact's whole-object rotation re-pivoted onto the character, not the
+assembly.** Kareem: "try fixating the rotation point on the center of the
+character not the center of the whole object." `Character.tsx`'s
+`rootPivot` (desk + chair + monitor + character, rotated together for
+Contact's end-turn and drag) was centered on the *whole group's* bounding
+box — reused `pivotPoint`, the upper-body-parts bounding-box center already
+computed for `upperBodyPivot`, instead. Practical effect: the character
+himself stays roughly in place through the turn now, with the desk/monitor
+swinging around *him* rather than his position swinging through an arc
+around a shared centroid off in the middle of the desk.
+
+**Contact's end-turn angle: 90° back down to 30°.** (8) is corrected twice
+over — the "90°, facing the text and me" ask from that entry itself turned
+out not to be what Kareem wanted once seen live: "the character should be
+facing the text, not the other side, with a 30 degree angle towards me, I
+asked this before." `CONTACT_END_YAW` is `Math.PI / 6` now. Screenshot at
+the settle beat: with the pivot fix above, 30° now reads as a real partial
+turn toward camera (part of his face/glasses visible past his shoulder)
+rather than the near-full profile/back view a bare 30° produced against
+the *old* pivot in (6)'s sweep — consistent with Kareem's own theory that
+the pivot, not just the angle, was behind how the turn read.
+
+**GitHub/LinkedIn as real icons.** New `data/socialIcons.ts` (same
+vendored-simple-icons-path approach as `skillIcons.ts`), rendered before
+the label text in Contact's link row.
+
+**Email-copy label given breathing room.** "The popup of the email copied
+should be margined a little bit to the right" — the copy button (its label
+swaps `copy` → `Email copied` in place, not a separate popup) sat right up
+against the email address with only the row's own `gap-2`. Added `ml-1`.
+
+**Cursor hover outline narrowed.** "The hover selection is taking place
+over the labels of the boxes." `CustomCursor.tsx`'s `OUTLINE_PADDING`
+(10px) reached past a hovered element's own edge far enough to cover a
+neighbor's label in the site's tightest real gap — Navbar's pills, `gap-1`
+(4px). Dropped to 4px. Confirmed by screenshot: hovering PROJECTS in the
+nav no longer touches WORK or SKILLS on either side.
+
+**Reload landing mid-Hero-pin: real bug, root-caused.** "The page goes to
+the flying text on reload, I want it to stay where it was or at least go
+to the very beginning." main.tsx already set `scrollRestoration = 'manual'`
+plus one `scrollTo(0, 0)` at module-eval time (from an earlier session's
+back/forward-nav fix) — looked like it should already cover this. Reproduced
+with Playwright by scrolling with real wheel events and reloading
+*immediately* (no settle wait, closer to a real fast Cmd+R): the browser
+still restored the old scroll offset sometime after that script ran, and it
+was never corrected — confirmed flaky (passed some runs, failed others) with
+the original single-call fix, and with just one added `load`-event
+reassertion. Fixed by reasserting `scrollTo(0, 0)` at two more points: the
+`load` event, and `onPinsReady` (the exact moment the page reaches its real
+full height — the other point a delayed/retried native restore could
+finally "land" on, once the page is finally tall enough to contain the old
+offset). Six consecutive automated repro runs landed at `scrollY: 0` after
+the fix, zero flakes, versus roughly half failing before it.
+
+Verified: `npx tsc -b` and `npx oxlint src/` both clean (same one
+pre-existing unrelated warning). Playwright pass against the real dev
+server throughout — Contact's 30°-with-new-pivot turn screenshotted at the
+settle beat, GitHub/LinkedIn icons and the copy-label spacing screenshotted
+in Contact's resting layout (with clipboard permissions granted so the real
+`copied` state renders, not just a focus ring), the narrowed nav outline
+screenshotted mid-hover, and the reload fix specifically re-run six times
+in a row to rule out the flakiness the first attempt had.
+
+## 2026-08-10 (8) — (7)'s Hero character turn was the wrong scene, reverted; the *Contact* end-scene's whole-object turn is now a fixed 90° instead of a tuned 75°; Contact's drag/cursor-follow now unlock as soon as the object settles instead of requiring the visitor to scroll all the way to the end of the pin
+
+Corrects course on (7) based on direct feedback, plus one more real bug in
+the same scene found while there.
+
+**Hero character rotation reverted — wrong scene.** "I want the character
+looking exactly the other way, to the text" turned out to mean the
+*Contact* end-scene's whole-object turn, not Hero's intro turn — Kareem:
+"I didn't mean the character at first to rotate, get it back to normal."
+`CHARACTER_TURN_YAW` back to `0`.
+
+**Contact's whole-object end turn: fixed 75° → fixed 90°.** "I wanted the
+full object at the end scene to rotate 90 degrees along the Y axis to be
+facing the text on the left and me too." `ContactTimeline.tsx`'s
+`CONTACT_END_YAW` (tuned to 75° in (6) after sweeping real angles) is now a
+plain `Math.PI / 2`. Kept the geometry-derived *sign* rather than hand-
+picking it too — `Math.sign(fullYaw)`, computed from his actual
+monitor-facing direction vs. the direction to the end camera position —
+since a previous round already found guessing that sign by hand landed
+dead-on *away* from the camera. Confirmed by screenshot at the settle beat:
+his face and the monitor both rotate a full quarter-turn, face now toward
+camera-left, monitor screen now edge-on and unlit (no longer facing him).
+
+**Contact's drag/cursor-follow: real bug, found while addressing the
+above.** Kareem: "the cursor follow of the character in the end shouldn't
+be after I reach [scroll to the very end] — it should be after it [the
+object] reaches the desired place." `settled()` gated both press-and-drag
+and the head's cursor-follow on `st.progress >= 1` — the *entire* Contact
+pin scrolled through, including the later `textIn` beat and a dead scroll
+stretch after it with nothing left to animate. The object itself finishes
+turning and the camera finishes settling at the end of the `cameraSettle`
+beat (progress 0.4), well before progress 1 — so there was a real,
+scrollable dead zone where the scene looked completely done but stayed
+non-interactive. `settled()` now checks `st.progress >= CONTACT_BEATS.cameraSettle[1]`
+instead. Verified two ways on the live `ScrollTrigger`/scene-graph
+instances (both exposed on `window` in dev): at progress 0.2 (mid-turn)
+moving the mouse left/right left `headPivot.rotation.y` at `0`, unchanged;
+at progress 0.6 (past settle, well short of the old `1.0` gate) the same
+move swung it from `0` to `∓0.5` — cursor-follow is live exactly where it
+should be now, and not before.
+
+Verified: `npx tsc -b` and `npx oxlint src/` both clean (same one
+pre-existing unrelated warning). Playwright pass against the real dev
+server for all three — Hero screenshotted back to its unrotated baseline,
+Contact's 90° turn screenshotted at the settle beat, and cursor-follow
+gating checked directly against scene-graph state at two different scroll
+progresses rather than just eyeballing a screenshot.
+
 ## 2026-08-10 (7) — Hero character now turns to face the entrance text; CustomCursor rewritten from GSAP tweens to a single rAF+lerp loop (fixes a fourth "stuck" failure mode); footer name and colored skills marquee restored
 
 Three items, verified with Playwright against the real dev server (screenshots

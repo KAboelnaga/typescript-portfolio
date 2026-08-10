@@ -138,28 +138,17 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       .add(camUp.clone().multiplyScalar(-0.25))
       .add(camRight.clone().multiplyScalar(-0.65));
 
-    // How far to turn the whole model — "with an angle of 30 [degrees],
-    // looking towards me but also looking towards the text." First pass
-    // (2026-08-10) capped the turn to a fixed 30°, which read as turned the
-    // wrong way ("looking the other way — reverse the rotate," "looking
-    // towards me more than that"). Tried literally flipping the sign first
-    // — worse, that's dead-on *away* from camera (confirmed by rendering
-    // both and comparing). What actually explains it: swept the real render
-    // through several fixed angles in the *original* (unflipped) direction
-    // — 0°/-30°/-50° all still read as a side/back view, his face doesn't
-    // actually clear into view until somewhere around -75°, well past the
-    // original 30° cap. It was never a sign problem, just not enough of a
-    // turn to ever show his face at all. -75° reads as a clear turned-to-
-    // camera pose while stopping well short of the *full* ~129° turn (so
-    // there's still some "still at his desk, not spun all the way around"
-    // left in it) — verified by screenshot comparison across the whole
-    // sweep, not guessed. forwardAngle is his actual monitor-facing
-    // direction before any rotation, desiredAngle is the direction from him
-    // to where the camera ends up (same real-geometry approach as
-    // monitor_screen's target) — only the *sign* of their difference is
-    // used, not the full magnitude. Falls back to CONTACT_SCENE_YAW if
-    // monitor_screen can't be found.
-    const CONTACT_END_YAW = (75 * Math.PI) / 180;
+    // How far to turn the whole model. Was 180° ("90 more degrees in the
+    // direction you rotated it"), Kareem: "maybe rotate 30 more degrees" —
+    // same direction again, landing at 210° total. forwardAngle is his
+    // actual monitor-facing direction before any rotation, desiredAngle is
+    // the direction from him to where the camera ends up; `fullYaw`'s sign
+    // picks the turn direction (derived from real geometry rather than
+    // guessed — guessing by hand once turned out wrong, dead-on *away*
+    // from camera), negated per an earlier round since Kareem wanted the
+    // opposite of what that geometry picks. Falls back to CONTACT_SCENE_YAW
+    // if monitor_screen can't be found.
+    const CONTACT_END_YAW = (7 * Math.PI) / 6;
     let sceneYaw = CONTACT_SCENE_YAW;
     const monitorScreen = sceneRoot?.getObjectByName('monitor_screen') as THREE.Mesh | undefined;
     if (monitorScreen) {
@@ -169,7 +158,7 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       const desiredAngle = angleOf(endPosition.x - charCenter.x, endPosition.z - charCenter.z);
       const twoPi = Math.PI * 2;
       const fullYaw = ((desiredAngle - forwardAngle + Math.PI) % twoPi + twoPi) % twoPi - Math.PI;
-      sceneYaw = Math.sign(fullYaw) * CONTACT_END_YAW;
+      sceneYaw = -Math.sign(fullYaw) * CONTACT_END_YAW;
       if (isDev) console.log('[contact] computed sceneYaw:', sceneYaw, 'full turn-to-camera would have been', fullYaw);
     }
 
@@ -262,8 +251,18 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     let baseYaw = sceneYaw;
     const basePitch = 0;
 
+    // "The cursor follow shouldn't be after I reach [the end of the
+    // scroll] — it should be after it [the object] reaches the desired
+    // place." Was gated on `st.progress >= 1` — the *entire* pin scrolled
+    // through, including the further textIn beat and the dead scroll left
+    // after it — even though the object itself visually finishes turning
+    // and settling much earlier, at the end of the cameraSettle beat.
+    // Gate on that instead: interactive (drag, cursor-follow) as soon as
+    // the settle animation itself completes, not once the visitor has
+    // scrolled all the way to the end of the pin.
+    const SETTLED_PROGRESS = CONTACT_BEATS.cameraSettle[1];
     function settled() {
-      return st.progress >= 1;
+      return st.progress >= SETTLED_PROGRESS;
     }
 
     function onPointerDown(e: PointerEvent) {
