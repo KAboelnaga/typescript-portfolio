@@ -1,7 +1,8 @@
 import { createPortal } from 'react-dom';
 
-const POPUP_WIDTH = 320;
-const POPUP_HEIGHT = 220;
+// "A larger popup" — raised from 320x220, same aspect ratio.
+const POPUP_WIDTH = 480;
+const POPUP_HEIGHT = 330;
 const GAP = 20;
 const EDGE_MARGIN = 16;
 

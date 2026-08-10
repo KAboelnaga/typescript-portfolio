@@ -1,10 +1,56 @@
 # Portfolio Build Spec — Kareem Aboelnaga
 
-This file is the source of truth for this project. Read it fully before writing code.
-Re-read the **Shot List** section any time you touch the camera or timeline.
+> **This file is significantly stale as of 2026-08-09 and is kept for
+> historical context, not as the current source of truth.** It describes
+> the *original* pre-build plan — a single ~3.6s autoplaying intro, three
+> named projects, no light mode, a 250vh scroll ceiling. Kareem redirected
+> almost every part of this substantially over many rounds of direct,
+> in-conversation feedback (documented turn-by-turn in `DONE.md`), and the
+> site now differs from this document in ways too extensive to keep
+> patching inline. **Current authoritative sources, in order of what
+> they cover:**
+> - **`CONTENT.md`** — all real user-facing copy (Kareem's own file,
+>   supersedes section 6 below entirely).
+> - **`DONE.md`** — the actual build history, newest first, with the
+>   real reasoning behind every design decision as it happened.
+> - **`TODO.md`** — what's still open, first-pass, or waiting on Kareem.
+> - **`src/scenes/timeline.ts`** — the real current camera/timing
+>   constants (still true to section 9's "single home for timing
+>   constants" rule below, just with a completely different shot list
+>   than section 4 describes).
+>
+> Genuinely still true: section 1 (stack — no new dependencies added
+> beyond what's listed, aside from a one-off `simple-icons` extraction
+> that was deliberately *not* kept as a runtime dependency, see DONE.md
+> 2026-08-09 (9)); section 3's actual hex values (the dark palette never
+> drifted from what's written below, confirmed against CONTENT.md
+> verbatim — though **light mode now exists**, contradicting this
+> section's "No light mode" instruction, added per direct request);
+> section 9's working agreement in spirit.
+>
+> **The real shot list, briefly:** press-and-drag orbit before scrolling
+> starts → scroll-driven intro turn (continuous, one direction, no
+> autoplay phase at all — the whole thing is scroll-scrubbed from frame
+> one) → entrance text → About Me → a beat that moves the camera through
+> the character to his own eye position → rapid zoom into the monitor →
+> black pass-through with flying code words → a projects title card,
+> still "inside the monitor" → real Work section (Rustaq case study with
+> a stat strip, Independent Developer) → real Projects grid (four cards,
+> not three) → Skills (tiered, not ranked, with real logos) → About
+> (three paragraphs) → Education/Competitive-programming/Languages → own
+> independently-pinned Contact scene (camera zooms back out, character
+> ends lower-right, drag + cursor-follow once settled). A Navbar
+> fast-forwards between sections; a Skip button exists (reversing this
+> doc's own "no Skip button" framing further down — CONTENT.md asked for
+> one directly).
+>
+> Read this file for the *reasoning* behind the original design tokens
+> and structural rules (still largely honored), not for what the page
+> currently does.
 
-Lines marked `[VERIFY]` contain assumptions I could not confirm. Ask me before
-acting on them — do not invent a value and move on.
+Lines marked `[VERIFY]` below are from the original draft and may or may
+not still be open — check `TODO.md` for current status before assuming
+one is still unresolved.
 
 ---
 
@@ -122,6 +168,14 @@ clickable, that's a bug.
 **No light mode.** Don't build a toggle, don't write light-mode tokens, don't add
 `dark:` variants in Tailwind. The 3D scene is lit for a dark page and a light
 theme would require relighting it. Set the tokens as the root values.
+
+> **Superseded 2026-08-09:** Kareem asked directly for a dark/light
+> toggle (a clickable 3D light bulb in the navbar). It exists now —
+> `theme/tokens.ts`'s `lightColor` export, applied via CSS custom
+> properties rather than Tailwind `dark:` variants (see
+> `theme/ThemeContext.tsx`), defaulting to dark regardless of OS
+> preference since this palette is still the primary, better-verified
+> one. See `DONE.md` 2026-08-08/09 for the full history.
 
 Set `<meta name="theme-color" content="#111721">` and
 `color-scheme: dark` on `:root` so the browser chrome and form controls match.

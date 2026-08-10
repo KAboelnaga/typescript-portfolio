@@ -14,7 +14,7 @@ const isDev = import.meta.env.DEV;
 interface SceneProps {
   pinRef: RefObject<HTMLDivElement | null>;
   nameRef: RefObject<HTMLDivElement | null>;
-  titleRef: RefObject<HTMLParagraphElement | null>;
+  titleRef: RefObject<HTMLDivElement | null>;
   aboutMeRef: RefObject<HTMLDivElement | null>;
   codeWordsRef: RefObject<HTMLDivElement | null>;
   projectsGlimpseRef: RefObject<HTMLDivElement | null>;

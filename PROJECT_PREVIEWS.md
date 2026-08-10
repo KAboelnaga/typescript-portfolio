@@ -1,19 +1,23 @@
 # Project preview images/videos
 
 How to change what shows up in the popup beside a project card on hover
-(`ProjectPreviewPopup.tsx`), including swapping out an auto-captured
-screenshot you don't like (e.g. Pet Society's current one — see below).
+(`ProjectPreviewPopup.tsx`).
 
 ## Where it's wired
 
 Each project in [`src/data/projects.ts`](./src/data/projects.ts) can set:
 
-- `previewImage` — path to a still image, e.g. `/previews/pet-society.png`
+- `previewImage` — path to a still image, e.g. `/previews/xray.png`
 - `previewVideo` — path to a video (autoplay, muted, loop). Takes priority
   over `previewImage` if both are set on the same project.
 
 Neither field is required. A project with neither set just doesn't show a
 popup on hover — that's the default, not a bug.
+
+**Current images, all real screenshots Kareem provided (2026-08-10):**
+Pet Society → `pet-society-homepage.png`, PneumoXpert → `xray.png`, Movie
+Discovery App → `movies.png`, Django Blog Platform → `blog.png`. Every
+project with a viewable UI now has a real preview.
 
 ## Where the files go
 
@@ -26,29 +30,24 @@ root):
 previewImage: '/previews/your-file.png',
 ```
 
-## Replacing Pet Society's current image
+## Replacing an existing image
 
-Right now it's a screenshot of the site's sign-in screen, captured
-automatically since the app is behind auth and there's no demo account to
-get past it — accurate, but not a great preview. To swap it for something
-better (an in-app screenshot, a GIF turned into a short video, etc.):
-
-1. Save your image as `public/previews/pet-society.png` (overwrite the
-   existing one), or save it under a new filename.
-2. If you used a new filename, update the `previewImage` line for the
-   `pet-society` entry in `src/data/projects.ts` to match.
+1. Save your new image under `public/previews/`, either overwriting the
+   existing filename or under a new one.
+2. If you used a new filename, update that project's `previewImage` line
+   in `src/data/projects.ts` to match.
 3. That's it — no other code changes needed.
 
 ## Sizing
 
-The popup itself renders at a fixed 320×220px box (`POPUP_WIDTH` /
+The popup itself renders at a fixed 480×330px box (`POPUP_WIDTH` /
 `POPUP_HEIGHT` in `ProjectPreviewPopup.tsx`) and the image/video is
 cropped to fill it (`object-cover`), so:
 
 - Roughly landscape, wider than tall, works best — very tall/narrow
   images will get cropped hard on the sides.
 - The source file can be any resolution above that — it'll scale down.
-  No need to pre-resize to exactly 320×220.
+  No need to pre-resize to exactly 480×330.
 - For video: keep it short and silent (it plays muted regardless, so
   audio in the file is wasted bytes) — a few seconds looping is plenty.
 

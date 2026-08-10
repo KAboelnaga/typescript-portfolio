@@ -34,7 +34,7 @@ interface Props {
   pinRef: RefObject<HTMLDivElement | null>;
   overlayRef: RefObject<HTMLDivElement | null>;
   nameRef: RefObject<HTMLDivElement | null>;
-  titleRef: RefObject<HTMLParagraphElement | null>;
+  titleRef: RefObject<HTMLDivElement | null>;
   aboutMeRef: RefObject<HTMLDivElement | null>;
   codeWordsRef: RefObject<HTMLDivElement | null>;
   projectsGlimpseRef: RefObject<HTMLDivElement | null>;
@@ -49,9 +49,12 @@ type EmissiveMaterial = THREE.Material & { emissiveIntensity?: number };
  * The whole Hero sequence, scroll-driven start to finish: intro turn ->
  * entrance text -> About Me -> monitor approach -> black pass-through ->
  * flying code words -> a glimpse of the projects "on screen". One
- * ScrollTrigger-pinned GSAP timeline for all of it — no autoplay, no Skip
- * button, no prefers-reduced-motion branch, since the whole point of going
- * scroll-driven is that the user already controls the pace.
+ * ScrollTrigger-pinned GSAP timeline for all of it — no autoplay, no
+ * prefers-reduced-motion branch, since the whole point of going
+ * scroll-driven is that the user already controls the pace. (A Skip
+ * button *was* deliberately left out for this same reason, until
+ * CONTENT.md's micro-copy table asked for one directly — see
+ * SkipIntro.tsx, mounted in Hero.tsx.)
  */
 export function HeroTimeline({
   upperBody,
@@ -236,13 +239,22 @@ export function HeroTimeline({
     // — see WordReveal.tsx. Spread across aboutMeIn *and* aboutMeHold so
     // by the time the hold ends (camera's about to move on) every word has
     // fully brightened, roughly pacing with how long there's been to read it.
+    // Kareem: "I want every single word to start the animation alone, not
+    // line by line — every time I scroll, the word is being lightened."
+    // The previous version gave each word a duration *longer* than the gap
+    // between words (padded by +0.03 on top of an already-tight per-word
+    // share), so with ~30+ words in this paragraph a dozen of them were
+    // always mid-fade at once — reading as whole clumps/lines brightening
+    // together, not one word at a time. Duration now barely exceeds the
+    // step between words (10% overlap, just enough to not look like a
+    // hard cut) instead of being computed independently of it.
     const aboutMeHoldBeat = beat('aboutMeHold');
     const aboutWords = aboutMeRef.current.querySelectorAll<HTMLElement>('[data-word-reveal]');
     const wN = aboutWords.length;
     if (wN > 0) {
       const wordSpan = aboutMeIn.duration + aboutMeHoldBeat.duration;
-      const wDuration = wordSpan / wN + 0.03;
-      const wStep = wN > 1 ? (wordSpan - wDuration) / (wN - 1) : 0;
+      const wStep = wordSpan / wN;
+      const wDuration = wStep * 1.1;
       aboutWords.forEach((el, i) => {
         tl.fromTo(
           el,
@@ -406,8 +418,24 @@ export function HeroTimeline({
     // starts (a one-shot native `scroll` listener, not scroll-scrubbed —
     // simplest way to avoid fighting introFadeIn's own scrubbed opacity
     // tween on the separate black overlay).
+    //
+    // Real bug, found and fixed: "the scroll to begin message stays until
+    // Projects, sometimes, when I go back and forth." This code only runs
+    // once the character model finishes loading — on a slow connection (or
+    // just an eager visitor), the user can easily have already scrolled
+    // well past the top by the time that happens. The old code showed the
+    // message unconditionally regardless of current scroll position, then
+    // waited for a *subsequent* scroll event to hide it again — if the
+    // user had already scrolled and then stopped (reading Work/Projects),
+    // no further scroll event ever came, leaving it stuck visible deep in
+    // the page. Reproduced via a throttled-network Playwright run: scroll
+    // early, and by the time this code ran the user was already at
+    // scrollY 3000 with the message stuck at opacity 1 indefinitely.
+    // Gating the initial show on "still actually at the top" fixes it at
+    // the root — there's no reason to welcome someone to "begin scrolling"
+    // once they already have.
     let welcomeShown = false;
-    if (welcomeRef.current) {
+    if (welcomeRef.current && window.scrollY < 40) {
       gsap.to(welcomeRef.current, { opacity: 1, duration: 0.8, delay: 0.4, ease: 'power2.out' });
       welcomeShown = true;
     }
@@ -434,6 +462,20 @@ export function HeroTimeline({
       st.kill();
       tl.kill();
     };
+    // `colors` deliberately excluded — "toggling dark/light mode changes
+    // where I'm standing on the site" was a real bug, and this was the
+    // cause. `colors` used to be a dependency so the About Me word-reveal
+    // would use whichever theme was active; but since colors comes from
+    // `useTheme()` (a new object reference every toggle), including it
+    // here meant every theme toggle re-ran this *entire* effect — killing
+    // and rebuilding the whole ScrollTrigger/GSAP timeline from scratch
+    // while scrolled deep into the pin, which is what actually moved the
+    // visible position. `colors` is still read inside the effect via
+    // closure (whatever it was when the effect last (re)built) — this
+    // only stops that read from *forcing* a rebuild. The already-known
+    // tradeoff stands: toggling theme mid-session while already scrolled
+    // into the About Me beat won't retroactively recolor those words.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     upperBody,
     sceneRoot,
@@ -448,7 +490,6 @@ export function HeroTimeline({
     welcomeRef,
     lookAtRef,
     onReady,
-    colors,
   ]);
 
   return null;

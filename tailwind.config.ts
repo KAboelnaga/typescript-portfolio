@@ -30,10 +30,22 @@ export default {
       body: [font.body],
       mono: [font.mono],
     },
+    // `base` is a color token too ("page background" — see `colors`
+    // above). Tailwind auto-generates a `text-{key}` utility for BOTH
+    // font-size keys and color keys, so a font-size key literally named
+    // `base` collides with the color one: `.text-base` ends up as ONE
+    // merged rule setting `font-size: 1rem` *and* `color: var(--color-base)`
+    // — meaning any element written as `text-base` (or `sm:text-base`,
+    // etc.) expecting a font size silently also got its text colored the
+    // same as the page background, next to invisible. Real bug, not a
+    // hypothetical — found via Kareem reporting "text under Get in touch
+    // isn't visible" and tracing it to the compiled CSS. Renamed to `md`
+    // (a common alternate name for the same "default" size) so it can't
+    // collide with any current or future color key.
     fontSize: {
       xs: type.xs,
       sm: type.sm,
-      base: type.base,
+      md: type.base,
       lg: type.lg,
       xl: type.xl,
       '2xl': type['2xl'],

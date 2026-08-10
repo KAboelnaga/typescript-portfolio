@@ -24,11 +24,12 @@ function elementTop(id: string) {
   return el.getBoundingClientRect().top + window.scrollY;
 }
 
-// "About" has no DOM element of its own to scroll to — it's a beat inside
-// the Hero pin's scrubbed timeline (see timeline.ts). Converting its
-// progress fraction into a scroll offset works because the pin's spacer
-// starts at document top (Hero is the first element on the page): scrollY
-// within the pin range is just pinDistance * progress.
+// "About" has no DOM element of its own again — the standalone About
+// section was removed ("2 about me... I only want the first one," see
+// AboutMeContent.tsx and DONE.md), so this is back to the original
+// mid-timeline-progress trick: converting a beat's progress fraction into
+// a scroll offset works because the Hero pin's spacer starts at document
+// top (Hero is the first element on the page).
 function heroBeatScrollTarget(beat: readonly [number, number]) {
   const progress = (beat[0] + beat[1]) / 2;
   const pinDistance = window.innerHeight * (HERO_SCROLL_PIN_VH / 100);
@@ -50,6 +51,18 @@ interface NavItem {
  * scroll position plays the intro turn / monitor zoom / etc. visibly along
  * the way, in whichever direction gets you there, exactly like scrolling by
  * hand would, just faster and hands-off.
+ *
+ * Items follow the site's actual scroll sequence top-to-bottom — "About"
+ * (the Hero-pinned About Me beat) happens chronologically *before* Work
+ * (it's a beat inside the Hero pin; Work only starts once that pin
+ * releases), and Skills/Background never had nav entries at all despite
+ * being real sections with their own IDs. Previously ordered `Work ·
+ * Projects · About · Contact · CV` (CONTENT.md's original spec, written
+ * before Skills/Background existed as separate sections) — "About" points
+ * at the Hero-pinned About Me beat's mid-progress scroll offset (the
+ * standalone About section it briefly pointed at was removed, see
+ * App.tsx). "CV" is a real download link, not a scroll target — rendered
+ * as a plain `<a download>` rather than going through `goTo`.
  */
 export function Navbar() {
   const [active, setActive] = useState('home');
@@ -57,11 +70,11 @@ export function Navbar() {
 
   const items: NavItem[] = useMemo(
     () => [
-      { id: 'home', label: 'Intro', target: () => 0 },
       { id: 'about', label: 'About', target: () => heroBeatScrollTarget(HERO_BEATS.aboutMeHold) },
+      { id: 'work', label: 'Work', target: () => elementTop('work') },
       { id: 'projects', label: 'Projects', target: () => elementTop('projects') },
-      { id: 'other-projects', label: 'Also built', target: () => elementTop('other-projects') },
-      { id: 'experience', label: 'Experience', target: () => elementTop('experience') },
+      { id: 'skills', label: 'Skills', target: () => elementTop('skills') },
+      { id: 'background', label: 'Background', target: () => elementTop('background') },
       { id: 'contact', label: 'Contact', target: () => elementTop('contact') },
     ],
     [],
@@ -73,10 +86,21 @@ export function Navbar() {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
+        // Picking "whichever item's target is the largest value still <= y"
+        // rather than "the last matching item in array order" keeps the
+        // highlight correct by actual scroll position regardless of array
+        // order — still worth doing this way even now that the array order
+        // matches the real sequence, since it's the position math that's
+        // actually authoritative, not the list order.
         const y = window.scrollY + window.innerHeight * 0.3;
-        let current = items[0].id;
+        let current = 'home';
+        let bestTarget = -Infinity;
         for (const item of items) {
-          if (item.target() <= y) current = item.id;
+          const t = item.target();
+          if (t <= y && t > bestTarget) {
+            bestTarget = t;
+            current = item.id;
+          }
         }
         setActive(current);
         ticking = false;
@@ -100,12 +124,26 @@ export function Navbar() {
     setActive(id);
   }, []);
 
+  const itemClass = (isActive: boolean) =>
+    `shrink-0 rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-[color,background-color,transform] duration-300 hover:scale-105 active:scale-95 focus-visible:outline-none sm:text-xs ${
+      isActive ? 'bg-surf-2 text-signal' : 'text-text-low hover:text-text-hi focus-visible:text-text-hi'
+    }`;
+
   return (
     <nav
       aria-label="Section navigation"
       className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4 sm:pt-5"
     >
-      <div className="flex items-center gap-1 rounded-full border border-surf-3 bg-void/70 px-1.5 py-1.5 backdrop-blur">
+      {/* Two more items (Skills, Background) than this pill was originally
+          sized for — "rearrange the navbar in the website's sequence" meant
+          adding the sections that were missing entirely, not just
+          reordering the existing four. That no longer fits one screen's
+          width at narrow viewports (About/CV were getting clipped off
+          either edge entirely, unreachable) — scrolls horizontally there
+          instead of overflowing invisibly; `shrink-0` on each item stops
+          flex from squeezing labels illegibly narrow as an alternative to
+          scrolling. */}
+      <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-surf-3 bg-void/70 px-1.5 py-1.5 backdrop-blur [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => (
           <button
             key={item.id}
@@ -113,15 +151,14 @@ export function Navbar() {
             onClick={() => goTo(item.target, item.id)}
             aria-current={active === item.id ? 'true' : undefined}
             style={active === item.id ? { fontVariationSettings: fontVariation.heading } : undefined}
-            className={`rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-colors duration-300 focus-visible:outline-none sm:text-xs ${
-              active === item.id
-                ? 'bg-surf-2 text-signal'
-                : 'text-text-low hover:text-text-hi focus-visible:text-text-hi'
-            }`}
+            className={itemClass(active === item.id)}
           >
             {item.label}
           </button>
         ))}
+        <a href="/CV.pdf" download className={itemClass(false)}>
+          CV
+        </a>
       </div>
     </nav>
   );

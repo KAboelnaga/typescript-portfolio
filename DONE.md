@@ -4,6 +4,746 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-10 (3) — Contact end-framing recentered; Navbar completed + reordered to match the real sequence; real "scroll to begin" stuck-visible bug found and fixed; entrance animations now replay every time; Skills colorize permanently; Contact's monitor screen lit
+
+Six items in one message, plus "continue with anything left in TODO.md."
+Worked them in the order given, then picked up TODO.md's monitor-screen
+note as the last item.
+
+**Contact end framing moved to centered, a little higher.** Was offset
+toward the camera's own up+left (lower-right framing, from the original
+"clear of the text" ask). Re-tuned the same real-geometry look-at-target
+offset (`ContactTimeline.tsx`) and verified numerically, not by eye:
+projected the character's actual world center through the live camera's
+own matrices (`window.__contactCamera`) to NDC space before and after —
+landed at `x≈0.30, y≈-0.32` (right of center, well below) before, `x≈0.02,
+y≈0.13` (essentially dead-center horizontally, modestly above center
+vertically) after. Confirmed clear of the message form in both dark and
+light theme screenshots.
+
+**Navbar completed and reordered to match the real page sequence.** Two
+separate problems: it was missing Skills and Background as nav items
+entirely (never had them, despite both being real sections with their own
+IDs), and "About" was listed after Work/Projects despite happening
+*first* chronologically (it's a beat inside the Hero pin; Work only starts
+once that pin releases — the DONE.md 2026-08-09 (10) entry had already
+flagged this exact mismatch without fixing the display order). Now reads
+`About · Work · Projects · Skills · Background · Contact · CV`, top-to-
+bottom matching the actual scroll order. **Caught and fixed a regression
+this caused**: two more items no longer fit the pill at 390px width —
+"About" and "CV" were being clipped off either edge entirely, unreachable
+by any means (confirmed via `getBoundingClientRect`: About at `x: -74`,
+off-screen left). Fixed by making the pill itself horizontally scrollable
+(`overflow-x-auto`, hidden scrollbar, `shrink-0` on each item so flex
+can't squeeze labels illegible instead of scrolling) rather than redesigning
+the nav — confirmed the *page* no longer has any horizontal overflow (only
+the pill scrolls internally) and that every item, including CV, is
+reachable by scrolling it.
+
+**Real bug found and fixed: "scroll to begin" stays visible until
+Projects, sometimes, when scrolling back and forth.** Reproduced
+deliberately rather than guessed — Playwright with CPU/network throttling
+(a plain dev-server repro wasn't slow enough to expose the race; needed a
+production preview build under throttled conditions to reliably hit it).
+Root cause: the welcome message's fade-in only runs once the character
+model finishes loading, and the old code showed it *unconditionally*
+regardless of current scroll position, then waited for a *subsequent*
+scroll event to hide it again. A visitor who starts scrolling before the
+model finishes loading (an eager visitor, or just a slow connection) can
+easily have already scrolled well past the top by the time that code
+finally runs — if they then stop to read rather than keep scrolling, no
+further scroll event ever comes, leaving the message stuck at opacity 1
+wherever they'd gotten to. Confirmed via the throttled repro: scrolled to
+`scrollY 3000` before the model loaded, message got stuck at `opacity: 1`
+indefinitely. Fixed by gating the initial show on `window.scrollY < 40` at
+the moment the code actually runs — there's no reason to welcome someone
+to "begin scrolling" once they already have. Confirmed fixed under the
+same throttled repro (`opacity: 0`, stays `0`), and confirmed the normal
+patient-visitor path (message shows, hides on first scroll, stays hidden
+through back-and-forth scrolling) still works exactly as before.
+
+**Entrance animations now replay every time the desired content is
+active, instead of once ever.** `ScrollReveal`, `StaggerReveal`, and
+`CountUp` all used `once: true` — fine for a first-time visitor scrolling
+straight down, but scrolling back up past a section and back down left it
+either already-revealed (static) or, for CountUp, frozen at its final
+number instead of counting again. All three now use
+`onEnter`/`onEnterBack` to play in and `onLeave`/`onLeaveBack` to reset
+back to hidden, in either scroll direction, so every pass re-triggers the
+same animation. Confirmed via Playwright: a Work stat scrolled to 1,068,
+reset to the "0,000" placeholder on scrolling away, then genuinely
+recounted (caught mid-count at "353") back up to 1,069 on returning.
+
+**Skills now stay colored after the auto-preview, instead of reverting.**
+Deliberately the *one* exception to the "redo every time" change above —
+`SkillTag.tsx`'s scroll-triggered brand-color sweep (shipped earlier this
+same day) used to hold for ~1.1s then revert back to grey. Now it latches:
+once a tag has been auto-colorized, `handleLeave` (both the removed
+delayed-revert and any subsequent hover-out) becomes a no-op for that tag
+specifically — colorizing reads as "unlocked," not a toggle that happens
+to also fire once on its own. Confirmed via Playwright: scrolled Python's
+tag into view, away, and back — stayed at its real brand blue (`#3776AB`)
+through the whole round trip, including while its `StaggerReveal` parent
+was independently popping it in/out of visibility.
+
+**Continued down TODO.md: Contact's monitor screen now runs the same
+emissive ramp Hero's does.** Real, if narrow, gap — Contact loads its own
+separate model instance from Hero's (independent `<Canvas>`s, see
+DONE.md), so Hero's tween on *its* `monitor_screen` material never
+touched Contact's copy, which sat at the GLB's untouched baked default the
+whole time. Added the identical `MONITOR_EMISSIVE_START` →
+`MONITOR_EMISSIVE_END` tween, timed to the `blackOut` beat so it ramps up
+as the scene fades into view. **Investigated rather than assumed this
+would look dramatic, and it doesn't, honestly**: read the material's
+actual values directly (`emissive: {r: 0.003, g: 0.007, b: 0.014}` — this
+mesh's baked emissive/base color is itself near-black in *both* scenes,
+Hero included) — the vivid glowing "code lines" visible in Hero's own
+close-up screenshots turn out to come from separate small bar-mesh
+geometry only legible at the extreme close-up FOV Hero's monitorApproach
+beat uses, not from this material property. Contact's wide, distant
+framing was never going to resolve that geometry regardless. The fix here
+is real and correct (matches Hero's code 1:1, closes the literal gap
+TODO.md flagged) but the visible difference in Contact itself is subtle,
+not a dramatic before/after — noted here rather than overclaimed.
+
+Verified throughout: `npx tsc -b`, `npm run build`, and `oxlint src/` all
+clean after every change (same one pre-existing unrelated warning). Full
+Playwright pass: nav order and mobile-scroll reachability, the throttled
+welcome-message repro before/after, Contact's NDC-projected framing
+before/after in both themes, CountUp/StaggerReveal replay cycles, Skills
+stay-colored across a scroll-away-and-back round trip, and a full
+click-through-every-section-then-scroll-all-the-way-down-and-back-up pass
+— zero console/page errors across all of it.
+
+## 2026-08-10 (2) — Priority queue set from TODO.md; real preview images wired; cursor scroll-desync bug fixed; card hover animation; Skills auto-colorize-on-scroll; found and fixed a premature-scroll-trigger bug shared by four components
+
+Kareem asked to review TODO.md and set a priority queue, then named four
+things directly: count-up/card animations "missing," the cursor stuck
+beside the last-hovered object, skills should colorize automatically when
+scrolled into view (not just on hover), and to wire up the preview images
+he'd dropped in `public/previews/`. Worked the queue in this order: bugs
+first (broken/missing things), then the explicit asks, then a sweep for
+anything else static; a fifth item (a shared animation-timing bug) turned
+up along the way and got fixed too since it affected already-shipped code,
+not just what was being added.
+
+**Real preview images wired.** Kareem's screenshots for Pet Society,
+PneumoXpert, Movie Discovery App, and Django Blog Platform were already
+sitting in `public/previews/` (`pet-society-homepage.png`, `xray.png`,
+`movies.png`, `blog.png`) but not referenced anywhere in
+`data/projects.ts` — Pet Society still pointed at the old sign-in-screen
+placeholder (`pet-society.png`, now deleted, nothing referenced it
+anymore), and the other three had no `previewImage` at all. Every project
+with a viewable UI now has a real preview; `PROJECT_PREVIEWS.md` updated to
+match (its "replace Pet Society's sign-in screenshot" section no longer
+applied — Kareem already did that himself).
+
+**Real bug fixed: the custom cursor's outline gets stuck at a stale screen
+position after scrolling with the mouse stationary.** `CustomCursor.tsx`
+only recomputed what's under the pointer on `pointermove` — a wheel scroll
+(or this site's own GSAP-driven Navbar/SkipIntro fast-forward jumps) moves
+page content without ever firing that event, so the outline stayed frozen
+at the old screen coordinates while the actual hovered element scrolled
+out from under it — exactly "the cursor is stuck beside the last hovered
+object." Added a `scroll` listener (`capture: true`, so it also catches
+Contact's internal `overflow-y-auto` scrolling, which doesn't bubble) that
+re-evaluates hover via `document.elementFromPoint` at the last known
+pointer position — same detection logic `pointermove` already used, just
+re-triggered on a different event. Confirmed via Playwright: hovering a
+fixed Navbar button and scrolling keeps the outline correctly traced to it
+(sub-pixel drift only, from the button's own width changing as the active
+section changes); hovering an in-flow project link then scrolling
+correctly re-traces to whatever's now under the still pointer — verified
+`document.elementFromPoint` at the same fixed screen coordinate genuinely
+resolves to a different project card post-scroll, and the outline updates
+to match instead of staying put.
+
+**Card hover animation added — `ProjectCard.tsx` had none beyond a
+background-color fade.** "The animation of any card and card components
+are missing." Cards now lift (`-translate-y-1.5`), pick up a border, and a
+soft shadow on hover. Also added a small arrow-shift micro-interaction (↗
+nudges up-right on hover) to every "live preview"/"view repo"/"Live (login
+required)" link in `ProjectCard.tsx` and `Work.tsx`, matching the "modern"
+direction of the card lift.
+
+**Skills auto-colorize on scroll — "let me see the skills getting colored
+on its own when previewed."** The brand-color letter sweep (`SkillTag.tsx`,
+shipped 2026-08-10) was hover-only, so nobody saw it without moving a mouse
+over every tag individually. Each tag now also runs the identical
+letter-by-letter sweep once, automatically, the first time it scrolls into
+view (a `once: true` ScrollTrigger on the `<li>`), holds ~1.1s, then
+reverts — a preview of the interaction, not a replacement for it; hovering
+afterward still colorizes on demand exactly as before.
+
+**Real bug found and fixed, affecting four components at once:
+ScrollTrigger positions computed before Hero's model finishes loading fire
+thousands of pixels too early.** Building the Skills auto-colorize surfaced
+this — a Playwright timing check showed Python's tag colorizing while its
+`<li>` was still 6353px below the viewport. Root cause: `ScrollReveal`,
+`StaggerReveal`, `CountUp`, and the new `SkillTag` all create their
+`ScrollTrigger` immediately on mount, but Hero's pin spacer (~6
+viewport-heights) only gets inserted once the character model finishes
+loading asynchronously — any trigger created before that measures its
+`'top 88%'`/`'top 90%'` position against the still-short page and never
+gets recalculated once the real (much taller) layout exists. This is the
+*exact* bug `heroReady.ts` already exists to solve for `ContactTimeline`'s
+own pin (its doc comment explains the static `ScrollTrigger.refresh()`
+mysteriously didn't fix it there either, so `ContactTimeline` waits for
+`onHeroReady` instead of refreshing) — the same fix just hadn't been
+applied to these four components. Gated all four behind `onHeroReady`.
+Confirmed via Playwright, before/after: CountUp's Work-section numbers now
+first change value at `top≈694px` (was `top≈6957px` — i.e. counting while
+still off-screen); SkillTag's auto-colorize now fires at `top≈778px` (was
+`top≈6353px`) — both now land right at their real viewport threshold
+instead of thousands of pixels early. This also silently fixes the same
+latent bug in every existing `ScrollReveal`/`StaggerReveal` use across
+Work/Projects/Skills/Background from earlier sessions, not just the two
+cases added this session — nobody had specifically stress-tested "scroll
+immediately after the page loads" before, since it doesn't affect a patient
+visitor who reads the page top-to-bottom at a normal pace.
+
+**Also swept for missing hover feedback while in there:** Navbar buttons
+now scale slightly on hover/press (previously color-only); Contact's two
+text inputs and the message textarea were missing `transition-colors`
+entirely (the focus border snapped instantly instead of easing); SkillTag
+chips now lift slightly on hover too, matching the card treatment.
+
+Verified throughout: `npx tsc -b` and `npm run build` clean, `oxlint src/`
+clean (same one pre-existing unrelated warning in `ThemeContext.tsx`). Full
+Playwright pass: preview-image wiring (correct file actually served in the
+hover popup), card hover lift confirmed via computed `transform` (6px
+translateY), cursor outline grow/re-trace-on-scroll/shrink-back cycle
+against both a fixed Navbar button and an in-flow project link, and the
+CountUp/SkillTag firing-position numbers above, both before and after the
+`onHeroReady` fix — zero console/page errors across all of it.
+
+## 2026-08-10 — Ten-item batch: theme-toggle bug, Contact fixes, About dedup, drag-rotate, count-up stats, bigger bulb, richer scroll animation, Skills hover colorize, Background restyle
+
+Kareem handed over ten items at once ("add these to the todo list and
+continue after from where you left") and went hands-off; worked through
+them in the order given, verifying each with Playwright before moving on
+rather than batching verification to the end.
+
+**Bug fixed: toggling dark/light mode changed scroll position.** Root
+cause: `HeroTimeline.tsx`'s big `useEffect` (the one that builds the
+ScrollTrigger + GSAP timeline) had `colors` — from `useTheme()` — in its
+dependency array. `colors` is a new object reference every render, so
+every theme toggle re-ran the effect's cleanup (killing the live
+ScrollTrigger/timeline) and rebuilt it from scratch, which is what
+actually moved the page. Removed `colors` from the deps array (still read
+via closure, `eslint-disable-next-line react-hooks/exhaustive-deps`
+added with the reasoning). Confirmed via `window.__heroScrollTrigger`
+holding the *same instance* across a toggle (was a new instance before
+the fix), and — the real test — scrollY unchanged across two toggles
+back-to-back at a settled mid-scroll position (`11187` before, during,
+and after, checked three times).
+
+**"Send a message" email form restored.** CONTENT.md's content pass
+(2026-08-09 (8)) had removed it per that doc's explicit "No contact
+form." Kareem's live message overrides the static doc — restored the
+full mailto-based form (name/email/message → `mailto:` with a prefilled
+subject/body) in `Contact.tsx`, kept alongside the direct-channel
+additions from that same pass (copy-to-clipboard email, `tel:` link, CV
+download) rather than reverting the file wholesale.
+
+**Bug fixed, root-caused: "Get in touch" paragraph text was nearly
+invisible.** Not just a wrong Tailwind class — `tailwind.config.ts` had
+a `fontSize.base` key *and* a `colors.base` key, both of which Tailwind
+compiles to a class literally named `.text-base`. The two declarations
+merged into one CSS rule, and the color declaration
+(`color: var(--color-base)`, the dark page-background color) silently
+overrode the font-size intent everywhere `text-base`/`sm:text-base` was
+used for sizing — including this paragraph, rendering it essentially
+background-colored. Found by grepping the *compiled* CSS
+(`.text-base{color:var(--color-base)}`), not by guessing. Fixed by
+renaming the fontSize scale key to `md` and updating the three call
+sites (`Work.tsx`, `Contact.tsx`); also swapped Contact's paragraph from
+`text-text-mid` to `text-text-hi` to match the rest of the block.
+Verified via compiled CSS and a live `getComputedStyle` read
+(`rgb(228, 231, 235)`, correct `text-hi`).
+
+**About deduped to one section.** There were two: the Hero-pinned "About
+Me" beat and a standalone `About.tsx` section further down the page,
+both opening with a version of the same idea. Deleted `About.tsx`,
+rewrote `AboutMeContent.tsx`'s copy to combine the tagline's concrete
+list (what he actually builds) with the standalone version's one
+genuinely distinctive detail (the competitive-programming background)
+instead of just keeping one of the two originals verbatim. The longer
+combined text pushed the pinned block's top edge above the safe zone,
+overlapping the Skip button — caught via `getBoundingClientRect` (real
+overlap, not a hunch), fixed by sizing the heading/paragraph down one
+notch and tightening the top margin. Removing `About.tsx` also broke the
+Navbar's active-section highlight logic (`Navbar.tsx`'s scroll handler
+assumed "last matching item in array order wins," which silently
+depended on About's target being numerically ahead of Work's — no
+longer true once About pointed back at a Hero-pin beat instead of a
+later DOM section) — fixed by tracking "the item with the largest
+target still ≤ current scroll position" instead of array order.
+
+**Contact's whole-object drag: rotate again, but limited and springs
+back.** Reverses 2026-08-09 (7)'s translate-with-spring-back, brings
+rotation back, but keeps what translate had that the *original*
+free-rotate drag (2026-08-09) never did — `ContactTimeline.tsx` now
+clamps yaw/pitch to `DRAG_YAW_RANGE`/`DRAG_PITCH_RANGE` (0.5/0.35 rad)
+around the settled orientation and springs back via
+`elastic.out(1, 0.5)` on release, reading the *current* resting yaw on
+each `pointerdown` rather than assuming it still equals the original
+`sceneYaw` (so an interrupted spring-back from a fast second drag can't
+get clobbered mid-flight). Verified numerically, not just visually: a
+deliberately oversized 800px drag clamped `sceneRoot.rotation` to
+exactly `baseYaw + 0.5` / `basePitch - 0.35` (not beyond), and settled
+back to the exact original `{x: 0, y: -2.25021}` after release —
+confirmed via a dev-only `window.__contactSceneRoot` hook added for this
+check.
+
+**Contact head cursor-follow: upward angle clamped tighter.** "If I'm
+above him he is kinda limited" — `CURSOR_FOLLOW_UP_LIMIT` (0.14 rad)
+caps only the positive/upward pitch direction in `onMouseMove`; looking
+down still uses the full `CURSOR_FOLLOW_RANGE`.
+
+**Count-up animation on Work's stat numbers.** New `CountUp.tsx` —
+parses the comma-formatted target once, counts from 0 on first
+scroll-into-view (`ScrollTrigger`, `once: true`), re-formats with
+`toLocaleString` every frame so `1,069` counts through real
+thousands-separated values rather than animating the raw string.
+Respects `prefers-reduced-motion` by rendering the final value directly.
+Verified the full 0 → 1,069/7,716/13 arc via Playwright timing
+snapshots.
+
+**`ThemeLightbulb` bigger, with a shadow/depth cue.** Size up from
+`h-12 w-12` to `h-16 w-16` (`sm:h-[4.5rem]`), plus a grounded CSS
+drop-shadow that reads as the object floating slightly off the page; the
+shadow warms toward the lamp color when lit (`rgba(217,154,69,0.55)`
+glow) rather than a flat static shadow either way. It was already
+spinning continuously on its own axis (`IDLE_SPIN_SPEED` in the existing
+`useFrame` loop, from the original bulb-integration work) — that part
+just needed to read more clearly at the larger size, which the new
+shadow helps sell. Added a second, dimmer cool-toned point light for
+extra shading definition. Verified box size (72px) and the
+lit/dark-conditional `box-shadow` via `getComputedStyle`.
+
+**Richer scroll-entrance animation across Work/Projects/Skills/
+Background.** The whole site shared one `ScrollReveal` fade+rise —
+"too static." Extended `ScrollReveal.tsx` with a `variant` prop (`up`/
+`left`/`right`/`scale`) and added `StaggerReveal.tsx`, a new component
+that pops each direct child in individually with a stagger instead of
+the whole group revealing at once (for tag/pill lists sitting at a
+single scroll position, where a single `ScrollReveal` around the
+wrapper would otherwise reveal every child at the exact same instant).
+Applied: Work's Rustaq stack tags and stat strip now use
+`StaggerReveal`/scale-pop instead of a flat block fade; Projects' cards
+alternate slide-in-from-left/right by grid column instead of one
+uniform rise; Skills' tier headings slide from the left and each tier's
+tag list staggers in; every section heading gets a `scale` pop instead
+of a static Parallax-only reveal. Verified every one of these ends at
+`opacity: 1` (nothing stuck mid-transition) via computed-style checks
+across all four sections, then visually via the Navbar's own
+proven scroll-to-section jumps (large-jump `scrollIntoView`/manual
+`scrollTo` math turned out unreliable for landing past the ~6200px Hero
+pin in a fresh Playwright page — the Navbar's `elementTop()`-based jump
+was the reliable way to actually get there for a screenshot).
+
+**Skills hover: colorize to brand color, letter by letter.** New
+`SkillTag.tsx` splits each skill label into one `<span>` per character;
+on hover, GSAP staggers each letter's `color` from the default
+`text-mid` to the skill's real brand hex (`data/skillColors.ts`, new —
+official colors for all 21 skills with a real logo), sweeping
+left-to-right on enter and right-to-left on leave. Tags with no real
+brand mark (Django Admin, REST APIs, Unit testing) are absent from
+`skillColors.ts` and keep the plain border-only hover instead of a
+fabricated color. Three brand colors (Django, Flask, SQLite) are
+genuinely near-black and would be invisible against both this site's
+near-black dark theme and near-white light theme — swapped for lighter
+tints from the same brand family rather than the literal hex (documented
+in the data file). Verified the full colorize-then-revert cycle
+numerically: Python's first/last letters both land on `rgb(55, 118,
+171)` (`#3776AB`, its real brand blue) mid-hover, and both revert to the
+exact original `rgb(163, 172, 186)` after unhover.
+
+**Background (Education/Competitive-programming/Languages) restyled and
+animated.** Sized every tier up a full step (body text `text-sm`/`xs` →
+`text-base`/`lg`, competitive-programming placements `text-2xl` →
+`text-4xl`/`5xl` matching Work's stat-number treatment) and added a
+section heading ("Background") matching the Work/Projects/Skills
+pattern that this section never had — it previously jumped straight
+into three same-weight sub-headings with no framing. Each column now
+enters from a different direction (`left`/`scale`/`right`) and its list
+staggers item-by-item via `StaggerReveal`, instead of one flat
+three-column fade.
+
+Verified across the whole batch: `npx tsc -b` clean, `npm run build`
+clean (`vite build`, only the pre-existing bundle-size warning, nothing
+new), `oxlint src/` clean (one pre-existing unrelated warning in
+`ThemeContext.tsx`). Full walkthrough Playwright pass — every Navbar
+destination, contact form presence, contact text contrast, and a
+double theme-toggle at a settled mid-scroll position — zero console
+errors or failed requests.
+
+## 2026-08-09 (10) — Mobile pass (real bug found), light theme review, SPEC.md destaled
+
+Kareem was asleep ("continue"); picked the highest-value items still
+flagged open in TODO.md rather than waiting — the ones that were
+concrete and checkable without him, not the ones genuinely blocked on
+his input (viewer account, project screenshots).
+
+**Real bug found and fixed: Navbar's "Work" button was unreachable on
+mobile.** `SkipIntro` and `ThemeLightbulb` are both `fixed ... top-4`
+(desktop-tuned), which is safely clear of the Navbar pill on wide
+viewports where the pill stays narrow and centered. At 390px, the pill
+has to span nearly the full width to fit five nav items + CV, and its
+left/right edges land almost exactly under `SkipIntro`/`ThemeLightbulb`.
+Since both sit at the same `z-50` and render later in the DOM, they
+painted directly on top of the "Work" button — it was present in the DOM
+(confirmed via `getBoundingClientRect`) but functionally unclickable,
+covered by `SkipIntro`. Caught this by actually running a Playwright
+pass at a 390×844 viewport across every new section rather than assuming
+"typechecks and looks fine on desktop" was sufficient — first mobile
+check this whole multi-day build has had. Fixed with a responsive
+position: `top-20` (below the pill) by default, `sm:top-4`/`sm:top-5`
+(original, beside the pill) once there's room. Confirmed with an actual
+Playwright click on "Work" post-fix — landed at the right scroll
+position with no interception.
+
+**Light theme reviewed section-by-section — no issues found.** Forced
+`localStorage.setItem('theme-mode', 'light')` + reload (the real path a
+returning visitor's preference would take) and screenshotted Work,
+Projects, Skills, About, Background, and Contact. Contrast, the stat
+strip's `lamp`-colored numbers, skill icons, and card styling all held
+up cleanly. This was flagged as "unverified" in TODO.md since the
+palette was picked by eye — still true that Kareem hasn't reviewed it
+himself, but it's now at least confirmed not *broken*.
+
+**SPEC.md destaled** — added a prominent banner at the top pointing to
+the documents that are actually current (`CONTENT.md` for copy,
+`DONE.md` for build history, `TODO.md` for open items,
+`src/scenes/timeline.ts` for real camera constants) plus a concise
+accurate summary of the real current shot list, rather than a full
+line-by-line rewrite of a 307-line document describing a design that
+was substantially redirected over many rounds of direct feedback. Also
+annotated the "No light mode" rule specifically (the one place this
+doc's original instruction is now directly contradicted) rather than
+leaving it to look like an oversight.
+
+Verified: `npx tsc -b` and `npm run build` clean after the position fix.
+Full Playwright pass at both 390px and standard desktop width, plus a
+forced-light-theme pass — zero console/page errors throughout.
+
+## 2026-08-09 (9) — Iteration 2: new character model, real light bulb, larger popups, skill logos
+
+The queued Iteration 2 from 2026-08-09 (7), done in full. Kareem had gone
+to bed ("continue the iterations on your own") — everything below was
+built and verified without further check-ins; flagging the handful of
+judgment calls made along the way rather than treating them as settled.
+
+**Character model swapped** (`models-source/developer-at-desk .glb` →
+`public/models/character.glb`, 569KB → 1.69MB) — the biggest risk in this
+whole batch, since every hand-tuned camera position in `timeline.ts` was
+tuned against the old model's proportions. Checked the new GLB's raw JSON
+before swapping (no Draco compression — loads fine as-is; exactly one
+`KHR_lights_punctual` light, named `screen_spill`, matching the old
+model's own baked light — no double-lighting risk). Backed up the old
+file to the scratchpad first. Then screenshotted *every* beat in both the
+Hero and Contact sequences — `introFadeIn`, `introTurn`, `introSettle`,
+entrance text, About Me, `throughEyes`, `monitorApproach`,
+`monitorBlack`, `codeWords`, `projectsTextIn`, and all four Contact
+beats — against the new model. **Every single one held up with no
+retuning needed.** This worked because the beats that matter most
+(`throughEyes`' eye position, the monitor target, Contact's end framing)
+were already computed from real runtime geometry (`Box3` on `head`/
+`monitor_screen`/`upperBody`) rather than hand-picked coordinates — they
+automatically adapted to the new model's actual proportions. The new
+model's face (real eyes, brows, glasses, beard, hair) reads clearly even
+at the small sizes these beats render it at.
+
+**Real light bulb model** (`models-source/light-bulb.glb`, new
+`public/models/light-bulb.glb`) replaces `ThemeLightbulb.tsx`'s
+procedural sphere+cylinder. Checked the GLB's materials first: `glass`
+and `tungsten` are the only two with a baked `emissiveFactor` — those are
+the ones `emissiveIntensity` gets driven on toward lit/dark, same
+`KHR_materials_emissive_strength` technique already used for the monitor
+screen. Spins continuously on its own (`useFrame`, rotation.y += rad/s ×
+delta); press-and-drag adds a manual offset on top via a per-frame ref
+accumulator (avoids a state update every pointermove); a plain click
+(under 5px of drag movement) still toggles the theme — distinguished by
+total drag distance, not a separate gesture. Confirmed via Playwright:
+click flips `data-theme`, a 70px drag afterward does *not* flip it back.
+
+**Larger project preview popups** — `POPUP_WIDTH`/`POPUP_HEIGHT` raised
+320×220 → 480×330 (same aspect ratio), `PROJECT_PREVIEWS.md` updated to
+match. Mechanism only — still just Pet Society has a real image; see
+TODO.md, unchanged from before.
+
+**Skill logos** (`data/skillIcons.ts`, new) — real brand SVG path data
+for the 21 skills that have an actual logo (Python, Django, PostgreSQL,
+React, JavaScript, Git, Linux, FastAPI, Flask, Redux, Vite, Tailwind,
+Bootstrap, MySQL, SQLite, Docker, Apache, Bash, Java, Spring Boot,
+TypeScript), sourced from the `simple-icons` package (MIT licensed) —
+installed temporarily, path data extracted with a one-off Python script,
+then **uninstalled again** so it's not a runtime dependency for ~20
+fixed strings. "Django Admin," "REST APIs," and "Unit testing" are
+deliberately left as plain text in `Skills.tsx` — they're not real
+branded products, so making up a mark for them would be fabricating
+exactly the kind of filler CONTENT.md says not to invent. Confirmed via
+Playwright in both dev and the production build: 21 icons render,
+matching the 21-entry map exactly.
+
+Verified throughout: `npx tsc -b` and `npm run build` clean (bundle grew
+~40KB gzip for the icon path data — the two GLB models are separate
+static assets, not part of the JS bundle). Full Playwright pass across
+every Hero/Contact beat with the new model, the bulb's click-vs-drag
+distinction, the popup's new size, and skill icon count in both dev and
+`npm run preview` — zero console/page errors across all of it.
+
+## 2026-08-09 (8) — Real copy from CONTENT.md across the whole site
+
+Kareem sent a complete copy doc (CONTENT.md — his own file, companion to
+CLAUDE.md, "Claude reads copy from here, do not invent filler") plus
+answers to its three open questions, and asked for it applied everywhere
+before moving on to Iteration 2. This replaces essentially every piece of
+placeholder/first-guess copy on the site with real content, and changes
+the page's information architecture to match CONTENT.md's own section
+order: Hero → Work → Projects → Skills → About → Background (Education /
+Competitive programming / Languages) → Contact.
+
+**Open questions, answered and applied:**
+- *Rustaq: sole developer, or one of two?* — one of two. Nothing on the
+  site claims "sole developer" for it as a result (the old
+  `data/projects.ts` entry had said exactly that — gone now, see below).
+- *Is the PythonAnywhere link production or a demo?* — production, but
+  gated behind an admin-created login with no self-serve signup. Labeling
+  it "demo" would have been inaccurate (CONTENT.md's own guidance: only
+  use that label if it *isn't* production), so the new Work section's
+  link is honest about the gate instead — "Live (login required)."
+  Kareem asked whether to create a viewer account; recommended in
+  TODO.md, not something Claude can do (not access to his production
+  system).
+- *Add "Team lead" to Pet Society's meta line?* — yes, and Kareem
+  extended the answer to also cover Django Blog Platform (CONTENT.md's
+  own draft had it as "Solo"). Both now show "team lead" in
+  `data/projects.ts`.
+
+**Hero copy changed**, title "Software Engineer" → "Full-Stack
+Developer," plus two new lines (the tagline sentence and an availability
+line) added to the same fading unit as the title — `titleRef` changed
+from a `<p>` to a `<div>` wrapping three lines (type updated across
+Hero.tsx/Scene.tsx/HeroTimeline.tsx, mechanical, no beat-timing changes).
+The standalone "Alexandria, Egypt" eyebrow tag above the name was
+removed — CONTENT.md moves that same information into the availability
+line at the bottom instead of duplicating it in two places.
+
+**About Me (the Hero-pinned beat) replaced with one sentence** — "change
+the about section to: I build the systems people use every day —
+permissions, reporting, admin interfaces, Arabic-first." Same sentence
+CONTENT.md uses as the Hero tagline, reused rather than writing a second
+line that says almost the same thing. All three `[VERIFY]`-flagged spans
+are gone — real content now exists, so there's nothing left to flag.
+
+**New standalone About section** (`About.tsx`, new, "below Projects" per
+CONTENT.md) — separate from the Hero beat above, three paragraphs of
+deeper context (education path, competitive programming, the Arabic RTL
+angle), verbatim from CONTENT.md.
+
+**New Work section** (`Work.tsx`, new) — Rustaq gets a full case-study
+treatment instead of a project-grid card: a stat strip (1,069 facilities,
+7,716 inspection reports, 13 active users — deliberately the largest,
+loudest thing in the section, per CONTENT.md's own instruction), the
+"two decisions worth naming" callout, and real live/repo links.
+Independent Developer sits underneath, kept to two sentences on purpose
+so it doesn't compete with Rustaq. Rustaq is **removed from
+`data/projects.ts` entirely** — it now only exists here.
+
+**Projects rebuilt to CONTENT.md's four**, replacing the old
+three-project grid (Zalando.it Product Scraper, Rustaq, Pet Society) plus
+the separate three-item "Also built" list. New `data/projects.ts`: Pet
+Society, PneumoXpert — AI Chest X-Ray Analysis, Movie Discovery App,
+Django Blog Platform — each with the real stack/links/scope-note
+CONTENT.md gives it. **Zalando.it Product Scraper is gone** — not
+mentioned anywhere in CONTENT.md, so treated as "do not invent filler"
+rather than kept on a guess. `ProjectCard.tsx`'s scope-note styling
+switched from italic body text to small mono, matching CONTENT.md's own
+spec ("Scope note (small, mono)"). Grid changed from a 3-column layout to
+`sm:grid-cols-2` for a clean 2×2 with four cards.
+
+**New Skills section** (`Skills.tsx` + `data/skills.ts`, new), replacing
+`TechSkillsSlider.tsx`'s marquee (deleted, along with its now-orphaned
+`marquee` keyframes in index.css). Three tiers — Daily / Comfortable /
+Learning — straight from CONTENT.md, plain tags, "no percentage bars, no
+proficiency rings — the tiering is the honesty."
+
+**New Background section** (`Background.tsx`, new) combining
+CONTENT.md's three smallest sections — Education, Competitive
+programming, Languages — into one three-column section rather than three
+consecutive near-empty full-bleed sections, which would have read as
+choppy at this content density. Each sub-block keeps CONTENT.md's own
+heading and formatting (competitive programming placements large in the
+display face, "the number is the content").
+
+**Contact section rewritten** — heading "Let's get connected" → "Get in
+touch," paragraph updated to CONTENT.md's availability line. **The "send
+me a message" form is gone** — CONTENT.md says "No contact form"
+explicitly. In its place: email as a real `mailto:` link plus a
+copy-to-clipboard button showing "Email copied" (confirmed via Playwright
+— clicked it, read the actual clipboard content back, got the right
+email), phone as a real `tel:` link, GitHub/LinkedIn (unchanged), and a
+"Download CV" link (CONTENT.md lists this as part of Contact's own
+content, not just the nav).
+
+**Navbar restructured** to CONTENT.md's own nav spec — `Work · Projects
+· About · Contact · CV` — replacing the six-item
+Intro/About/Projects/Also built/Experience/Contact version. "About" now
+points at the real `#about` DOM section instead of the old
+progress-fraction-into-the-Hero-pin hack, since About has its own
+standalone place on the page now. "CV" renders as a plain `<a download>`
+styled to match the button items, not a scroll target.
+
+**Skip-intro button added** (`SkipIntro.tsx`, new) — CONTENT.md's
+micro-copy table lists `Skip`. This directly reverses an explicit earlier
+decision recorded in `HeroTimeline.tsx`'s own doc comment ("no autoplay,
+no Skip button... the whole point of going scroll-driven is that the
+user already controls the pace") — noted there rather than silently
+overwritten, since CONTENT.md is a deliberate spec, not an oversight.
+Visible only while still inside the Hero pin (fixed top-left, opposite
+`ThemeLightbulb`), animates scroll to the pin's end via the same GSAP
+`ScrollToPlugin` approach as Navbar. Confirmed via Playwright: clicking
+it lands `heroProgress` at exactly `1`.
+
+**Footer and meta updated** — footer text now "Built with React,
+Three.js and TypeScript · Alexandria, {year}" (was name + year in two
+separate lines); `index.html`'s title/description now match CONTENT.md's
+Meta section.
+
+**Files deleted** (replaced, not just unused): `Experience.tsx`,
+`data/experience.ts`, `OtherProjects.tsx`, `data/otherProjects.ts`,
+`TechSkillsSlider.tsx`.
+
+Verified throughout: `npx tsc -b` and `npm run build` clean. Full
+Playwright pass — nav item labels, Skip button visibility + click
+behavior (lands at `heroProgress: 1`), Work section's stat numbers,
+Projects' four card titles, Skills' three tier labels, About's paragraph
+count, Contact's form genuinely absent + `tel:` link correct + copy
+button verified against real clipboard content — zero console/page
+errors across all of it. Screenshotted every new/changed section.
+
+## 2026-08-09 (7) — Iteration 1: real scroll-restoration bug fixed, CV installed, About Me overhauled
+
+Kareem sent twelve more items plus his real CV and two new GLB models
+(`models-source/`). Too much for one pass — split into iterations (see
+TODO.md); this entry covers Iteration 1, the self-contained/low-risk half.
+Iteration 2 (character model swap, light-bulb model, project popup
+images, new Skills section) is queued but not started.
+
+**Real CV installed.** "I have attached my desired cv, rename it and put
+it in the file where it should be." The attachment's filename
+(`Kareem_Aboelnaga_Full_Stack_Developer_CV.pdf`) matched *four* different
+files already sitting in `~/Downloads` under that same name — content-
+diffed all four via `pdftotext` against the attachment's actual text
+(the "Learning: Java, Spring Boot, Spring Data JPA.." line and exact
+bullet wording were the distinguishing details) rather than guessing
+from filename or date, since two of the four were subtly different CV
+versions. `~/Downloads/files-3/Kareem_Aboelnaga_Full_Stack_Developer_CV.pdf`
+was the exact match, copied to `public/CV.pdf` (replacing the earlier
+`cupsfilter` placeholder). No code change needed — the download link
+already pointed here.
+
+**Real bug found and fixed: scroll sequence breaking on return visits.**
+"The sequence of scenes breaks when I go back and forth in the website,
+it gets me the last scene right after the first." Reproduced deliberately
+via Playwright rather than guessing: scrolled deep into the page,
+navigated away and used browser back — and confirmed the browser's
+default scroll restoration (`history.scrollRestoration`) snaps back to
+the *previous* scrollY the instant the page returns, which happens
+**before** the character model has loaded and before `HeroTimeline`/
+`ContactTimeline` have created their `pin: true` ScrollTriggers. At that
+moment the document is still short (no pin spacers yet), so the browser
+clamps the restored scrollY to whatever the short page's max is; once the
+pins actually get created moments later and the real (much taller)
+layout exists, nothing ever revisits that clamped scrollY — the visitor
+ends up dropped deep into the Hero pin's progress (its final beats) with
+zero scrolling of their own, which is exactly what "gets me the last
+scene right after the first" describes. Fixed in `main.tsx`:
+`history.scrollRestoration = 'manual'` plus an explicit `scrollTo(0, 0)`
+before React even mounts, so every load/back-forward always starts at
+the real top regardless of scroll history. Confirmed via the same repro
+(navigate deep → leave → `page.goBack()`) landing at `heroProgress: 0`
+instead of `0.692` after the fix, both with instrumented polling and a
+production build.
+
+**Contact whole-object drag: X-axis added, matching Y.** "Add the same
+margin for the x axis too, that you made for y-axis." Constants renamed
+`DRAG_Y_SENSITIVITY`/`DRAG_Y_RANGE` → `DRAG_SENSITIVITY`/`DRAG_RANGE`
+now that they apply to both; `onPointerMoveDrag` computes and clamps an
+X offset the same way as Y, `onPointerUp`'s spring-back tweens both
+`x` and `y` back to baseline together.
+
+**Hero + About Me text moved left; About Me sized way up.** Both
+containers had a stray `mx-auto` centering them within their already-
+padded flex wrapper — removed, so both now sit at the left edge (this
+compositionally makes more sense now that the character settles on the
+right, per the previous session's reframe). About Me's heading went
+`text-2xl sm:text-3xl` → `text-3xl sm:text-4xl lg:text-5xl`, its
+paragraph `text-base` → `text-xl sm:text-2xl`, container `max-w-3xl` →
+`max-w-4xl`. The bigger block pushed its top edge up under the fixed
+Navbar — added `pt-28` to the wrapper to clear it, caught by screenshot
+before shipping, not by luck.
+
+**About Me word-reveal made genuinely discrete, word by word,** not
+clusters/lines. Kareem: "I want every single word to start the animation
+alone... every time I scroll, the word is being lightened." Root cause,
+found by reading the actual numbers rather than re-guessing: each word's
+fade `duration` was computed *independently* of the `stagger` gap
+between words (`wordSpan/wN + 0.03`, uncapped relative to the step) — with
+~46 words in this paragraph, roughly a dozen were always mid-fade
+simultaneously, reading as whole lines brightening together. Now
+`duration` is derived *from* the step (`wStep * 1.1`, ~10% overlap) so
+only one word (occasionally two, mid-crossfade) is ever transitioning at
+once. Confirmed by sampling word colors mid-scroll: a small, changing
+subset bright at any given progress, not most/all of them.
+
+**"Scroll to begin" made bold and larger,** `text-xs`/`text-low` →
+`text-base font-bold`/`text-hi` (`sm:text-lg`), chevron icon enlarged to
+match. Disappear-on-first-scroll (shipped 2026-08-09 (6)) re-verified
+still works after the size/weight change.
+
+**Scroll-down button now also hides at the very bottom of the page.**
+"Make the scroll button disappear if I reached the end of the website."
+Additive on top of the existing 2026-08-09 (2) "always visible" behavior
+— new `atBottom` state (`scrollY >= scrollHeight - innerHeight - 24px`),
+recomputed on both `scroll` and `resize`. Back-to-top's own
+appear-after-threshold behavior is unchanged.
+
+**New GLB assets inspected, not yet integrated** —
+`models-source/developer-at-desk .glb` (the replacement character,
+1.69MB) and `models-source/light-bulb.glb` (2.28MB), both dumped via a
+raw GLB-JSON-chunk node inspector (no GLTFLoader needed, just read the
+header). The character model's node names match `Character.tsx`'s
+`UPPER_BODY_NODE_NAMES` and every `getObjectByName` lookup used
+elsewhere (`head`, `monitor_screen`, `screen_spill`) exactly — same rig
+convention, just far more detailed (real face geometry instead of a
+blob head). This is genuinely good news for Iteration 2 but the swap
+itself is deliberately not done yet — every hand-tuned camera position
+in `timeline.ts` was tuned against the old model's proportions and needs
+re-verification once the new one is in, not just a file copy.
+
+**Playwright methodology note, for next time:** `ScrollTrigger.scroll()`
+(the instance's own programmatic jump, used successfully all session for
+reading back camera position/fov) does *not* reliably reflect a scrub-
+smoothed timeline's discrete `.set()`-driven state (e.g. a `visibility`
+toggle) within a normal wait window — a real, gradual `mouse.wheel()`
+scroll to the same target progress shows the correct state where
+`st.scroll()` briefly doesn't. Chased this as a suspected bug for a
+while before confirming it's a test-harness quirk, not a product issue —
+worth reaching for real wheel-scroll simulation first when verifying
+anything gated behind a discrete (not tweened) property change, to avoid
+re-diagnosing this same false alarm.
+
+Verified throughout: `npx tsc -b` and `npm run build` clean after every
+change. Full Playwright pass: the scroll-restoration repro (before/after,
+including a production-build check), Contact drag readouts on both axes,
+About Me screenshots via real scroll confirming left alignment/size/
+discrete word colors, scroll-down button opacity at the true page
+bottom, welcome message timing — zero console/page errors across all of
+it.
+
 ## 2026-08-09 (6) — Dark/light theme + 3D bulb, Experience section, cursor/drag fixes, slower pacing
 
 Large batch, twelve items in one message. Two real bugs (cursor stuck

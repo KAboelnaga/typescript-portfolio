@@ -2,16 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 
 // Two floating affordances layered over the whole page (fixed, not scoped
 // to any one section) — a scroll hint bottom-center, and a back-to-top
-// bottom-right. The scroll-down hint stays visible/clickable everywhere —
-// "I want the scroll part to be always there so that I can always click it
-// to scroll down" — while back-to-top only makes sense once you've
-// actually left the top, so it keeps its own threshold. The two never
-// overlap (center vs. right), so showing both at once is fine.
-// Deliberately minimal — no button chrome/fill, just an icon and a
-// hairline ring that sweeps in on hover/focus (a "circular select" cue) —
-// per Kareem: "more minimal... with an animation of the circular select on
-// that button when approached."
+// bottom-right. The scroll-down hint stays visible/clickable pretty much
+// everywhere — "I want the scroll part to be always there so that I can
+// always click it to scroll down" — except right at the very end of the
+// page, where "scroll down" has nothing left to do ("make the scroll
+// button disappear if I reached the end of the website"). Back-to-top
+// only makes sense once you've actually left the top, so it keeps its own
+// threshold. The two never overlap (center vs. right), so showing both at
+// once is fine. Deliberately minimal — no button chrome/fill, just an
+// icon and a hairline ring that sweeps in on hover/focus (a "circular
+// select" cue) — per Kareem: "more minimal... with an animation of the
+// circular select on that button when approached."
 const BACK_TO_TOP_SHOW_AFTER = 120;
+const BOTTOM_HIDE_MARGIN = 24;
 
 function HoverRing() {
   return (
@@ -75,20 +78,28 @@ const iconWrapClass = 'relative flex h-[34px] w-[34px] shrink-0 items-center jus
 
 export function ScrollControls() {
   const [scrollY, setScrollY] = useState(0);
+  const [atBottom, setAtBottom] = useState(false);
 
   useEffect(() => {
     let ticking = false;
+    function measure() {
+      setScrollY(window.scrollY);
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+      setAtBottom(window.scrollY >= scrollable - BOTTOM_HIDE_MARGIN);
+      ticking = false;
+    }
     function onScroll() {
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(() => {
-        setScrollY(window.scrollY);
-        ticking = false;
-      });
+      requestAnimationFrame(measure);
     }
-    onScroll();
+    measure();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
   }, []);
 
   const scrollDown = useCallback(() => {
@@ -100,14 +111,19 @@ export function ScrollControls() {
   }, []);
 
   const showBackToTop = scrollY >= BACK_TO_TOP_SHOW_AFTER;
+  const showScrollDown = !atBottom;
 
   return (
     <>
       <button
         type="button"
         aria-label="Scroll down"
+        aria-hidden={!showScrollDown}
+        tabIndex={showScrollDown ? 0 : -1}
         onClick={scrollDown}
-        className={`${buttonClass} bottom-8 left-1/2 -translate-x-1/2 opacity-100`}
+        className={`${buttonClass} bottom-8 left-1/2 -translate-x-1/2 ${
+          showScrollDown ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
       >
         <span className="font-mono text-[10px] uppercase tracking-[0.25em]">Scroll</span>
         <span className={iconWrapClass}>

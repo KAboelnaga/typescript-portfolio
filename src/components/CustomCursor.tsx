@@ -34,6 +34,18 @@ const OUTLINE_RADIUS = 10;
  * un-stick it. Re-deriving "what's actually under the pointer right now"
  * every move is self-correcting by construction — there's no persistent
  * state that can drift from reality for more than one frame.
+ *
+ * "The cursor is stuck beside the last hovered object" — a second, later
+ * failure mode, only reachable on a scroll-heavy page like this one:
+ * `pointermove` only fires on actual mouse motion, never from a wheel
+ * scroll or this site's own GSAP-driven `scrollTo` (Navbar/SkipIntro fast-
+ * forward jumps). Hover an in-flow element (a project card), then scroll
+ * with the mouse stationary — the element's bounding rect moves out from
+ * under a pointer that never generated an event to notice. The outline sat
+ * frozen at the stale screen coordinates until the pointer eventually moved
+ * again. Fixed by re-evaluating hover on `scroll` too, via
+ * `document.elementFromPoint` at the last known pointer position instead of
+ * `e.target` (scroll events carry no coordinates of their own).
  */
 export function CustomCursor() {
   const dotRef = useRef<HTMLDivElement>(null);
@@ -59,6 +71,8 @@ export function CustomCursor() {
 
     let visible = false;
     let currentTarget: Element | null = null;
+    let lastX = 0;
+    let lastY = 0;
 
     // x/y and width/height/radius always animate together in ONE tween,
     // whether growing onto a target or shrinking back to a dot at the
@@ -75,15 +89,14 @@ export function CustomCursor() {
       gsap.to(outline, { x, y, width, height, borderRadius: radius, duration, ease: 'power3.out', overwrite: 'auto' });
     }
 
-    function onPointerMove(e: PointerEvent) {
-      if (!visible) {
-        visible = true;
-        gsap.to([dot, outline], { opacity: 1, duration: 0.2 });
-      }
-      moveDotX(e.clientX);
-      moveDotY(e.clientY);
-
-      const hit = e.target instanceof Element ? e.target.closest(HOVER_SELECTOR) : null;
+    // Shared by pointermove and scroll — the only difference is where x/y
+    // comes from (a real event vs. the last known pointer position, since
+    // scroll events carry none). `fast` shortens the tween so a scrolled-
+    // away card's outline snaps to the new rect instead of visibly lagging
+    // behind it.
+    function evaluateHover(x: number, y: number, fast: boolean) {
+      const target = document.elementFromPoint(x, y);
+      const hit = target instanceof Element ? target.closest(HOVER_SELECTOR) : null;
       if (hit !== currentTarget) {
         currentTarget = hit;
         if (hit) {
@@ -94,20 +107,50 @@ export function CustomCursor() {
             rect.width + OUTLINE_PADDING * 2,
             rect.height + OUTLINE_PADDING * 2,
             OUTLINE_RADIUS,
-            0.35,
+            fast ? 0.15 : 0.35,
           );
           gsap.to(dot, { opacity: 0, duration: 0.2 });
         } else {
-          setOutline(e.clientX, e.clientY, DOT_SIZE, DOT_SIZE, 999, 0.3);
+          setOutline(x, y, DOT_SIZE, DOT_SIZE, 999, fast ? 0.15 : 0.3);
           gsap.to(dot, { opacity: 1, duration: 0.2 });
         }
-      } else if (!currentTarget) {
-        // Not hovering anything and nothing changed — just keep tracking
-        // the pointer smoothly (the fast path; setOutline already handled
-        // the transition frame above).
+      } else if (hit) {
+        // Same element still under the pointer, but its rect may have moved
+        // (scrolled) since the outline was last positioned — re-trace it.
+        const rect = hit.getBoundingClientRect();
+        setOutline(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+          rect.width + OUTLINE_PADDING * 2,
+          rect.height + OUTLINE_PADDING * 2,
+          OUTLINE_RADIUS,
+          0.15,
+        );
+      }
+    }
+
+    function onPointerMove(e: PointerEvent) {
+      if (!visible) {
+        visible = true;
+        gsap.to([dot, outline], { opacity: 1, duration: 0.2 });
+      }
+      lastX = e.clientX;
+      lastY = e.clientY;
+      moveDotX(e.clientX);
+      moveDotY(e.clientY);
+
+      evaluateHover(e.clientX, e.clientY, false);
+      if (!currentTarget) {
+        // Not hovering anything — keep tracking the pointer smoothly (the
+        // fast path; evaluateHover already handled any transition frame).
         moveOutlineX(e.clientX);
         moveOutlineY(e.clientY);
       }
+    }
+
+    function onScroll() {
+      if (!visible) return;
+      evaluateHover(lastX, lastY, true);
     }
 
     function onPointerLeave(e: PointerEvent) {
@@ -118,11 +161,13 @@ export function CustomCursor() {
     }
 
     window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
     document.addEventListener('pointerleave', onPointerLeave);
 
     return () => {
       document.documentElement.classList.remove('custom-cursor-active');
       window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('scroll', onScroll, { capture: true });
       document.removeEventListener('pointerleave', onPointerLeave);
     };
   }, []);

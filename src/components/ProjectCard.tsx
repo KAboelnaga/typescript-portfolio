@@ -34,7 +34,7 @@ export function ProjectCard({ project }: { project: Project }) {
         ref={cardRef}
         onMouseEnter={onEnter}
         onMouseLeave={() => setHovered(false)}
-        className="flex h-full flex-col gap-4 rounded-lg bg-surf-1 p-6 transition-colors hover:bg-surf-2 sm:p-8"
+        className="flex h-full flex-col gap-4 rounded-lg border border-transparent bg-surf-1 p-6 transition-[transform,background-color,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1.5 hover:border-surf-3 hover:bg-surf-2 hover:shadow-[0_24px_48px_-16px_rgba(0,0,0,0.55)] sm:p-8"
       >
         <p className="font-mono text-xs text-text-low sm:text-sm">
           {project.year} · {project.role}
@@ -47,9 +47,7 @@ export function ProjectCard({ project }: { project: Project }) {
         </p>
 
         {project.note && (
-          <p className="font-body text-sm italic leading-relaxed text-text-low">
-            {project.note}
-          </p>
+          <p className="font-mono text-xs leading-relaxed text-text-low">{project.note}</p>
         )}
 
         <ul className="flex flex-wrap gap-2 pt-2">
@@ -70,9 +68,10 @@ export function ProjectCard({ project }: { project: Project }) {
                 href={project.previewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="font-mono text-sm text-signal transition-colors duration-300 hover:underline"
+                className="group inline-flex items-center gap-1 font-mono text-sm text-signal transition-colors duration-300 hover:underline"
               >
-                live preview ↗
+                live preview
+                <span className="inline-block transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true">↗</span>
               </a>
             )}
             {project.repoUrl && (
@@ -80,9 +79,10 @@ export function ProjectCard({ project }: { project: Project }) {
                 href={project.repoUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="font-mono text-sm text-signal transition-colors duration-300 hover:underline"
+                className="group inline-flex items-center gap-1 font-mono text-sm text-signal transition-colors duration-300 hover:underline"
               >
-                view repo ↗
+                view repo
+                <span className="inline-block transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true">↗</span>
               </a>
             )}
           </div>

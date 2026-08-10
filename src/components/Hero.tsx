@@ -12,12 +12,14 @@ export function Hero() {
   // old 90svh.
   const pinRef = useRef<HTMLDivElement>(null);
 
-  // Entrance text (name + location tag). Starts visible in the static
-  // markup — safe fallback if JS never runs — then HeroTimeline hides and
-  // re-reveals it on scroll once it initializes.
+  // Entrance text (name). Starts visible in the static markup — safe
+  // fallback if JS never runs — then HeroTimeline hides and re-reveals it
+  // on scroll once it initializes.
   const nameRef = useRef<HTMLDivElement>(null);
-  // "Software Engineer" — its own scroll beat, separate from the name.
-  const titleRef = useRef<HTMLParagraphElement>(null);
+  // Title + tagline + availability line — its own scroll beat, separate
+  // from the name. A div (not a single paragraph) since CONTENT.md's copy
+  // needs three distinct lines fading in/out together as one unit.
+  const titleRef = useRef<HTMLDivElement>(null);
   // About Me and the code-words overlay both default hidden (opacity-0)
   // rather than the visible-then-hide pattern above: they physically
   // overlap the entrance text's screen position, so both being visible by
@@ -49,38 +51,45 @@ export function Hero() {
         ref={welcomeRef}
         className="pointer-events-none absolute inset-x-0 bottom-20 z-10 flex flex-col items-center gap-2 opacity-0 sm:bottom-24"
       >
-        <p className="font-mono text-xs uppercase tracking-[0.3em] text-text-low sm:text-sm">
+        <p className="font-mono text-base font-bold uppercase tracking-[0.3em] text-text-hi sm:text-lg">
           Scroll to begin
         </p>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-text-low" aria-hidden="true">
-          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-text-hi" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
 
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-center px-6 sm:px-10 lg:px-16">
-        <div className="mx-auto w-full max-w-3xl">
+        <div className="w-full max-w-3xl">
           <div ref={nameRef}>
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-low sm:text-sm">
-              Alexandria, Egypt
-            </p>
-
             <h1
-              className="mt-4 font-display text-3xl leading-[0.95] text-text-hi md:text-4xl"
+              className="font-display text-3xl leading-[0.95] text-text-hi md:text-4xl"
               style={{ fontVariationSettings: fontVariation.name }}
             >
               Kareem Aboelnaga
             </h1>
           </div>
 
-          <p ref={titleRef} className="mt-4 font-body text-lg text-text-mid sm:text-xl">
-            Software Engineer
-          </p>
+          <div ref={titleRef} className="mt-4">
+            <p className="font-body text-lg text-text-mid sm:text-xl">Full-Stack Developer</p>
+            <p className="mt-3 max-w-xl font-body text-base leading-relaxed text-text-mid sm:text-lg">
+              I build the systems people use every day — permissions, reporting, admin
+              interfaces, Arabic-first.
+            </p>
+            <p className="mt-3 font-mono text-xs uppercase tracking-[0.15em] text-text-low sm:text-sm">
+              Alexandria, Egypt · Available immediately · Remote, hybrid, on-site or relocation
+            </p>
+          </div>
         </div>
       </div>
 
       <AboutMeContent
         ref={aboutMeRef}
-        className="pointer-events-none absolute inset-0 flex flex-col justify-center px-6 opacity-0 sm:px-10 lg:px-16"
+        // pt-28 clears the fixed Navbar — the much-larger heading/paragraph
+        // (Kareem: "change the size of the about me to a much larger
+        // size") made this block tall enough that plain justify-center
+        // pushed its top edge up under the nav pill.
+        className="pointer-events-none absolute inset-0 flex flex-col justify-center px-6 pt-28 opacity-0 sm:px-10 lg:px-16"
       />
 
       <CodeWordsOverlay ref={codeWordsRef} className="pointer-events-none absolute inset-0 z-20" />

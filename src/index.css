@@ -101,17 +101,6 @@ h3 {
   }
 }
 
-/* TechSkillsSlider.tsx's marquee track — translates exactly one copy-width
-   (-50%) of a doubled list, so the loop point is seamless. */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
 /* Native cursor hidden only once CustomCursor.tsx confirms a fine pointer
    (real mouse) and motion isn't reduced — see that file. Scoping the hide to
    this class (rather than a blanket rule) means touch devices and

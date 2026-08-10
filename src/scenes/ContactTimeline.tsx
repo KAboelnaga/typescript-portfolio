@@ -9,6 +9,8 @@ import {
   CONTACT_START_CAMERA,
   CONTACT_END_CAMERA,
   CONTACT_SCENE_YAW,
+  MONITOR_EMISSIVE_START,
+  MONITOR_EMISSIVE_END,
   SCRUB,
 } from './timeline';
 import { onHeroReady } from './heroReady';
@@ -16,6 +18,8 @@ import { onHeroReady } from './heroReady';
 gsap.registerPlugin(ScrollTrigger);
 
 const isDev = import.meta.env.DEV;
+
+type EmissiveMaterial = THREE.Material & { emissiveIntensity?: number };
 
 function vec([x, y, z]: [number, number, number]) {
   return { x, y, z };
@@ -27,12 +31,23 @@ function vec([x, y, z]: [number, number, number]) {
 // the upper body (see Character.tsx's onHeadReady). Raised from 0.22 —
 // "make it follow the cursor more."
 const CURSOR_FOLLOW_RANGE = 0.42;
-// "Make the drag at the end for the whole object only move in the y
-// direction a bit, and return to its position on release" — replaced the
-// old two-axis free-rotate drag entirely. Sensitivity converts drag pixels
-// to world units; range clamps how far it can travel either way ("a bit").
-const DRAG_Y_SENSITIVITY = 0.003;
-const DRAG_Y_RANGE = 0.15;
+// "If I'm above him he is kinda limited" — looking up reads as more
+// physically awkward than looking down for this model, so the upward
+// half of the pitch range is clamped tighter than the downward half
+// instead of using the same range both ways.
+const CURSOR_FOLLOW_UP_LIMIT = 0.14;
+// "Enhance the movement of the object at the end, make it rotate not
+// translate, but make it limited and return to the same spot" — the
+// 2026-08-09 (7) translate-with-spring-back version undid the original
+// free-rotate drag; this brings rotation back but folds in what
+// translate had that the *original* rotate never did: a limited range
+// and a spring back to the settled orientation on release, rather than
+// persisting and accumulating across drags. Sensitivity converts drag
+// pixels to radians; range clamps how far either axis can turn from
+// the settled `sceneYaw`/0 pitch ("limited").
+const DRAG_SENSITIVITY = 0.006;
+const DRAG_YAW_RANGE = 0.5;
+const DRAG_PITCH_RANGE = 0.35;
 const SPRING_BACK_DURATION = 0.7;
 
 interface Props {
@@ -40,8 +55,9 @@ interface Props {
   overlayRef: RefObject<HTMLDivElement | null>;
   textRef: RefObject<HTMLDivElement | null>;
   upperBody: THREE.Group | null;
-  // Whole loaded model (desk + monitor + character) — press-and-drag nudges
-  // it up/down a bit and springs back on release (see DRAG_Y_RANGE).
+  // Whole loaded model (desk + monitor + character) — press-and-drag
+  // rotates it a limited amount and springs back to its settled
+  // orientation on release (see DRAG_YAW_RANGE/DRAG_PITCH_RANGE).
   sceneRoot: THREE.Group | null;
   // Isolated head-only pivot for cursor-follow — see CURSOR_FOLLOW_RANGE.
   head: THREE.Group | null;
@@ -92,11 +108,18 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     createdRef.current = true;
 
     // Compute the end framing from the character's actual world position
-    // rather than a hand-guessed target — repeated guesses weren't landing
-    // "lower right, clear of the text." Camera sits at a wide offset from
-    // his real center; the look-at target is deliberately offset toward the
-    // camera's own up+left so his fixed position renders in the lower
-    // right of frame, wherever that world position actually is.
+    // rather than a hand-guessed target. Camera sits at a wide offset from
+    // his real center; the look-at target is offset from his center in the
+    // camera's own local right/up axes so the framing holds regardless of
+    // wherever his world position actually is. "Move the character to the
+    // middle, a little higher" (2026-08-10) — was offset toward camera up
+    // +left (lower-right framing); target now sits slightly *below and
+    // right* of his center instead, which — since a look-at target below
+    // the subject renders the subject higher in frame, and vice versa for
+    // horizontal — puts him centered horizontally and a little above
+    // center vertically. Tuned by rendering the settled frame and reading
+    // his projected screen position back via the camera's own matrices
+    // (`window.__contactCamera`), not eyeballed from a screenshot alone.
     const box = new THREE.Box3().setFromObject(upperBody);
     const charCenter = box.getCenter(new THREE.Vector3());
     const endPosition = charCenter.clone().add(new THREE.Vector3(2.6, 0.85, 2.1));
@@ -106,8 +129,8 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     const camUp = new THREE.Vector3().crossVectors(camRight, viewDir).normalize();
     const endTarget = charCenter
       .clone()
-      .add(camUp.clone().multiplyScalar(0.6))
-      .add(camRight.clone().multiplyScalar(-0.95));
+      .add(camUp.clone().multiplyScalar(-0.25))
+      .add(camRight.clone().multiplyScalar(-0.05));
 
     // How far to turn the whole model so the character (and desk) end up
     // facing the actual end camera position — "complete the turn until he
@@ -122,7 +145,7 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     // the other. Falls back to CONTACT_SCENE_YAW if monitor_screen can't
     // be found.
     let sceneYaw = CONTACT_SCENE_YAW;
-    const monitorScreen = sceneRoot?.getObjectByName('monitor_screen');
+    const monitorScreen = sceneRoot?.getObjectByName('monitor_screen') as THREE.Mesh | undefined;
     if (monitorScreen) {
       const monitorCenter = new THREE.Box3().setFromObject(monitorScreen).getCenter(new THREE.Vector3());
       const angleOf = (x: number, z: number) => Math.atan2(x, z);
@@ -132,6 +155,20 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       sceneYaw = ((desiredAngle - forwardAngle + Math.PI) % twoPi + twoPi) % twoPi - Math.PI;
       if (isDev) console.log('[contact] computed sceneYaw:', sceneYaw, 'vs. fallback', CONTACT_SCENE_YAW);
     }
+
+    // "Contact scene's monitor screen isn't lit up" — this canvas loads its
+    // own separate model instance from Hero's (see DONE.md, two independent
+    // <Canvas>es), so HeroTimeline's tween on *its* monitor_screen material
+    // never touches this one — it was just sitting at the GLB's baked
+    // default the whole time. Same `KHR_materials_emissive_strength`
+    // technique as Hero, ramped up alongside the blackOut fade so the
+    // screen visibly lights up as the scene becomes visible rather than
+    // just appearing pre-lit.
+    const rawMonitorMaterial = monitorScreen?.material;
+    const monitorMaterial = (Array.isArray(rawMonitorMaterial) ? rawMonitorMaterial[0] : rawMonitorMaterial) as
+      | EmissiveMaterial
+      | undefined;
+    if (monitorMaterial) monitorMaterial.emissiveIntensity = MONITOR_EMISSIVE_START;
 
     const lookAt = vec(CONTACT_START_CAMERA.target);
 
@@ -150,6 +187,9 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
 
     const blackOut = beat('blackOut');
     tl.to(overlayRef.current, { opacity: 0, duration: blackOut.duration, ease: 'power1.out' }, blackOut.start);
+    if (monitorMaterial) {
+      tl.to(monitorMaterial, { emissiveIntensity: MONITOR_EMISSIVE_END, duration: blackOut.duration }, blackOut.start);
+    }
 
     const settle = beat('cameraSettle');
     tl.to(camera.position, { x: endPosition.x, y: endPosition.y, z: endPosition.z, duration: settle.duration }, settle.start);
@@ -185,19 +225,20 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
 
     // Interactive once fully settled. Two independent things, on two
     // different nodes so they don't fight each other:
-    // - Press-and-drag nudges the *whole object* (sceneRoot — desk,
-    //   monitor, and character together) up/down a bit and springs back to
-    //   its settled position the instant the mouse releases — "make the
-    //   drag at the end for the whole object only move in the y direction
-    //   a bit, and it returns back to its position on release." Replaces
-    //   the previous free two-axis rotation, which persisted between drags.
+    // - Press-and-drag rotates the *whole object* (sceneRoot — desk,
+    //   monitor, and character together) a limited amount around its
+    //   settled orientation (yaw from horizontal drag, pitch from
+    //   vertical, each independently clamped) and springs back to exactly
+    //   that settled orientation the instant the mouse releases.
     // - When not dragging, only the isolated headPivot (see Character.tsx)
     //   subtly turns toward the cursor — "his face only to be moving," not
     //   the whole body.
     const dom = gl.domElement;
     let dragging = false;
+    let startClientX = 0;
     let startClientY = 0;
-    let baseY = 0;
+    let baseYaw = sceneYaw;
+    const basePitch = 0;
 
     function settled() {
       return st.progress >= 1;
@@ -206,26 +247,33 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     function onPointerDown(e: PointerEvent) {
       if (!settled() || !sceneRoot) return;
       dragging = true;
+      startClientX = e.clientX;
       startClientY = e.clientY;
-      baseY = sceneRoot.position.y;
-      gsap.killTweensOf(sceneRoot.position);
+      // Read back the *current* resting yaw rather than assuming it's
+      // still `sceneYaw` — a still-finishing spring-back tween from a
+      // previous drag could otherwise get clobbered mid-flight.
+      baseYaw = sceneRoot.rotation.y;
+      gsap.killTweensOf(sceneRoot.rotation);
       dom.setPointerCapture(e.pointerId);
       dom.style.cursor = 'grabbing';
     }
     function onPointerMoveDrag(e: PointerEvent) {
       if (!dragging || !sceneRoot) return;
-      const dy = (e.clientY - startClientY) * DRAG_Y_SENSITIVITY;
-      // Dragging down on screen moves the object down, not up.
-      const offset = Math.min(Math.max(-dy, -DRAG_Y_RANGE), DRAG_Y_RANGE);
-      sceneRoot.position.y = baseY + offset;
+      const dYaw = (e.clientX - startClientX) * DRAG_SENSITIVITY;
+      const dPitch = (e.clientY - startClientY) * DRAG_SENSITIVITY;
+      const yawOffset = Math.min(Math.max(dYaw, -DRAG_YAW_RANGE), DRAG_YAW_RANGE);
+      const pitchOffset = Math.min(Math.max(dPitch, -DRAG_PITCH_RANGE), DRAG_PITCH_RANGE);
+      sceneRoot.rotation.y = baseYaw + yawOffset;
+      sceneRoot.rotation.x = basePitch + pitchOffset;
     }
     function onPointerUp(e: PointerEvent) {
       if (!dragging) return;
       dragging = false;
       dom.style.cursor = settled() ? 'grab' : 'default';
       if (sceneRoot) {
-        gsap.to(sceneRoot.position, {
-          y: baseY,
+        gsap.to(sceneRoot.rotation, {
+          y: baseYaw,
+          x: basePitch,
           duration: SPRING_BACK_DURATION,
           ease: 'elastic.out(1, 0.5)',
         });
@@ -243,8 +291,11 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       head.rotation.y = nx * CURSOR_FOLLOW_RANGE;
       // Negated — "the cursor follow in the y-axis for the head is
       // inverted." Moving the cursor toward the top of the screen (ny
-      // negative) should pitch the head up, not down.
-      head.rotation.x = -ny * CURSOR_FOLLOW_RANGE * 0.5;
+      // negative) should pitch the head up, not down. Positive
+      // rotation.x is "looking up" in this convention — clamped tighter
+      // than looking down: "if I'm above him he is kinda limited."
+      const pitch = -ny * CURSOR_FOLLOW_RANGE * 0.5;
+      head.rotation.x = pitch > 0 ? Math.min(pitch, CURSOR_FOLLOW_UP_LIMIT) : pitch;
     }
 
     dom.addEventListener('pointerdown', onPointerDown);
@@ -253,7 +304,12 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     window.addEventListener('mousemove', onMouseMove);
 
     if (isDev) {
-      Object.assign(window, { __contactTimeline: tl, __contactScrollTrigger: st, __contactCamera: camera });
+      Object.assign(window, {
+        __contactTimeline: tl,
+        __contactScrollTrigger: st,
+        __contactCamera: camera,
+        __contactSceneRoot: sceneRoot,
+      });
     }
 
     return () => {

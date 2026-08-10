@@ -18,50 +18,65 @@ export interface Project {
   previewVideo?: string;
 }
 
+// Sourced from CONTENT.md (Kareem's own copy doc, 2026-08-09) — replaces
+// the earlier three-project grid entirely. Two real changes from before:
+// Zalando.it Product Scraper is gone (not in CONTENT.md at all — treated
+// as "do not invent filler" rather than kept as a guess), and Rustaq
+// Municipality System moved out of this grid into its own Work section
+// (see Work.tsx) since CONTENT.md gives it a full case-study treatment,
+// not a card. "Team lead" on Pet Society and Django Blog Platform is
+// Kareem's direct answer to CONTENT.md's own open question ("yes, team
+// lead for both") — Django Blog Platform's drafted "Solo" label was
+// provisional and got overridden by that answer.
 export const projects: Project[] = [
-  {
-    slug: 'zalando-scraper',
-    name: 'Zalando.it Product Scraper',
-    year: '2026',
-    role: 'sole developer',
-    description:
-      'Async Python scraper for an e-commerce catalog — discovers categories, paginates listings, and extracts structured product data (JSON-LD and framework hydration payloads first, Playwright only for JS-heavy fallback pages), validated with Pydantic and persisted to PostgreSQL via SQLAlchemy.',
-    note: 'Built to prefer structured data sources over raw DOM scraping for resilience against page-layout changes.',
-    stack: ['Python', 'PostgreSQL', 'Playwright', 'SQLAlchemy'],
-    // Public repo (made public 2026-08-09, replacing SIC/XE — see TODO.md).
-    // No live URL — it's a CLI/backend tool, nothing to deploy.
-    repoUrl: 'https://github.com/KAboelnaga/Scraper',
-  },
-  {
-    slug: 'rustaq-municipality-system',
-    name: 'Rustaq Municipality System',
-    year: '2025',
-    role: 'sole developer · freelance',
-    description:
-      'Django administration system for a municipality in Oman. Multi-branch hierarchy, tiered permissions, inspection form exports, heavily customized Django Admin in Arabic RTL. Deployed on shared cPanel hosting.',
-    stack: ['Django', 'PostgreSQL', 'Arabic RTL'],
-    // Public repo, confirmed 2026-08-09 (github.com/KAboelnaga/municipal-system).
-    // No live URL — the repo's own README notes client-identifying details
-    // were removed for the portfolio version, and GitHub's "About" section
-    // lists no homepage, so there's nothing public to link/screenshot.
-    repoUrl: 'https://github.com/KAboelnaga/municipal-system',
-  },
   {
     slug: 'pet-society',
     name: 'Pet Society',
-    year: '2024',
-    role: 'full-stack, team project',
-    description: 'React and Django app with real-time features via Django Channels.',
-    note: 'The WebSocket chat layer was a teammate’s work.',
-    stack: ['React', 'Django', 'Channels', 'WebSockets'],
-    // Confirmed live 2026-08-09 via the repo's GitHub "About" section and
-    // README (github.com/KAboelnaga/Pet_Society).
+    year: '2025',
+    role: 'team lead',
+    description:
+      'A social platform for pet owners — posts, following, comments, likes and messaging. Built authentication and the sign-up/login flows, profile pages, and dark mode across the app, plus most of the integration work: merge conflicts, auth bugs, and cross-cutting fixes.',
+    note: "Real-time messaging was a teammate's work.",
+    stack: ['Django', 'React', 'PostgreSQL', 'Tailwind'],
     repoUrl: 'https://github.com/KAboelnaga/Pet_Society',
     previewUrl: 'https://pet-society-silk.vercel.app',
-    // Captured directly from the live URL above via Playwright — it's the
-    // sign-in screen (the app's behind auth, no demo account to log in
-    // with), not an in-app shot. Real and accurate, just not the most
-    // flattering preview — swap for a logged-in screenshot if you have one.
-    previewImage: '/previews/pet-society.png',
+    previewImage: '/previews/pet-society-homepage.png',
+  },
+  {
+    slug: 'pneumoxpert',
+    name: 'PneumoXpert — AI Chest X-Ray Analysis',
+    year: '2026',
+    role: 'frontend & integration',
+    description:
+      'A React client for a pneumonia classifier that returns heatmap overlays. Rewrote the 2024 original with a reusable component architecture and redeployed the 1.3GB inference container against the new frontend.',
+    note: "Team graduation project. The model is my team's work — mine is the frontend, integration and deployment.",
+    stack: ['React', 'Vite', 'REST API', 'Docker'],
+    repoUrl: 'https://github.com/KAboelnaga/pneumoxpert-2.0',
+    previewUrl: 'https://pneumoxpert-2-0.vercel.app',
+    previewImage: '/previews/xray.png',
+  },
+  {
+    slug: 'movie-discovery-app',
+    name: 'Movie Discovery App',
+    year: '2025',
+    role: 'frontend',
+    description:
+      'A supplied Figma design built as a near pixel-perfect responsive UI on the TMDB API, with dark mode and client-side search and filtering.',
+    note: 'Design supplied as an ITI coursework brief — implementation is mine.',
+    stack: ['React', 'Bootstrap', 'TMDB API'],
+    repoUrl: 'https://github.com/KAboelnaga/Movie-App',
+    previewUrl: 'https://movie-app-mauve-xi.vercel.app',
+    previewImage: '/previews/movies.png',
+  },
+  {
+    slug: 'django-blog-platform',
+    name: 'Django Blog Platform',
+    year: '2025',
+    role: 'team lead',
+    description:
+      'Multi-author blog with authentication and role-based permissions on a customized Django admin.',
+    stack: ['Django', 'PostgreSQL', 'Bootstrap'],
+    repoUrl: 'https://github.com/KAboelnaga/Django_Blog_Project',
+    previewImage: '/previews/blog.png',
   },
 ];
