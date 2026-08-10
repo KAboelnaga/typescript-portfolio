@@ -14,6 +14,7 @@ import {
   SCRUB,
 } from './timeline';
 import { onHeroReady } from './heroReady';
+import { markContactReady } from './contactReady';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -28,14 +29,17 @@ function vec([x, y, z]: [number, number, number]) {
 // How far the character's head tracks the cursor once settled, in radians
 // either side of dead-center — "I want his face only to be moving," now
 // that Character.tsx exposes a real headPivot isolated from the rest of
-// the upper body (see Character.tsx's onHeadReady). Raised from 0.22 —
-// "make it follow the cursor more."
-const CURSOR_FOLLOW_RANGE = 0.42;
+// the upper body (see Character.tsx's onHeadReady). Raised twice now:
+// 0.22 -> 0.42 ("make it follow the cursor more") -> 0.58 (2026-08-10,
+// "I want also the cursor follow to be more for the character").
+const CURSOR_FOLLOW_RANGE = 0.58;
 // "If I'm above him he is kinda limited" — looking up reads as more
 // physically awkward than looking down for this model, so the upward
 // half of the pitch range is clamped tighter than the downward half
-// instead of using the same range both ways.
-const CURSOR_FOLLOW_UP_LIMIT = 0.14;
+// instead of using the same range both ways. Scaled up with
+// CURSOR_FOLLOW_RANGE, same ratio as before, so "more" doesn't also mean
+// "more awkward looking up."
+const CURSOR_FOLLOW_UP_LIMIT = 0.19;
 // "Enhance the movement of the object at the end, make it rotate not
 // translate, but make it limited and return to the same spot" — the
 // 2026-08-09 (7) translate-with-spring-back version undid the original
@@ -44,11 +48,13 @@ const CURSOR_FOLLOW_UP_LIMIT = 0.14;
 // and a spring back to the settled orientation on release, rather than
 // persisting and accumulating across drags. Sensitivity converts drag
 // pixels to radians; range clamps how far either axis can turn from
-// the settled `sceneYaw`/0 pitch ("limited").
+// the settled `sceneYaw`/0 pitch ("limited"). Duration raised (0.7 ->
+// 0.9) alongside the 2026-08-10 ease change below — "a smoother
+// animation of the release."
 const DRAG_SENSITIVITY = 0.006;
 const DRAG_YAW_RANGE = 0.5;
 const DRAG_PITCH_RANGE = 0.35;
-const SPRING_BACK_DURATION = 0.7;
+const SPRING_BACK_DURATION = 0.9;
 
 interface Props {
   pinRef: RefObject<HTMLDivElement | null>;
@@ -111,14 +117,14 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     // rather than a hand-guessed target. Camera sits at a wide offset from
     // his real center; the look-at target is offset from his center in the
     // camera's own local right/up axes so the framing holds regardless of
-    // wherever his world position actually is. "Move the character to the
-    // middle, a little higher" (2026-08-10) — was offset toward camera up
-    // +left (lower-right framing); target now sits slightly *below and
-    // right* of his center instead, which — since a look-at target below
-    // the subject renders the subject higher in frame, and vice versa for
-    // horizontal — puts him centered horizontally and a little above
-    // center vertically. Tuned by rendering the settled frame and reading
-    // his projected screen position back via the camera's own matrices
+    // wherever his world position actually is. "The character to go the
+    // right more" — pushed twice now (2026-08-10): centered
+    // (`camRight * -0.05`) → `-0.4` → `-0.65`. A larger magnitude here
+    // shifts the look-at target further left of his center, which puts
+    // *him* further right in frame (target left ⇒ subject right).
+    // `camUp * -0.25` (unchanged) keeps him a little above center
+    // vertically. Tuned by rendering the settled frame and reading his
+    // projected screen position back via the camera's own matrices
     // (`window.__contactCamera`), not eyeballed from a screenshot alone.
     const box = new THREE.Box3().setFromObject(upperBody);
     const charCenter = box.getCenter(new THREE.Vector3());
@@ -130,20 +136,30 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     const endTarget = charCenter
       .clone()
       .add(camUp.clone().multiplyScalar(-0.25))
-      .add(camRight.clone().multiplyScalar(-0.05));
+      .add(camRight.clone().multiplyScalar(-0.65));
 
-    // How far to turn the whole model so the character (and desk) end up
-    // facing the actual end camera position — "complete the turn until he
-    // is facing me, not the text." The hand-tuned CONTACT_SCENE_YAW was
-    // reused from when it only rotated the character to face roughly
-    // toward the text; computed from real geometry instead, same approach
-    // already used for monitor_screen's target and the original Contact
-    // framing (see DONE.md): forwardAngle is the character's actual
-    // monitor-facing direction before any rotation, desiredAngle is the
-    // direction from him to where the camera ends up, and the signed
-    // difference between them is exactly the yaw needed to align one to
-    // the other. Falls back to CONTACT_SCENE_YAW if monitor_screen can't
-    // be found.
+    // How far to turn the whole model — "with an angle of 30 [degrees],
+    // looking towards me but also looking towards the text." First pass
+    // (2026-08-10) capped the turn to a fixed 30°, which read as turned the
+    // wrong way ("looking the other way — reverse the rotate," "looking
+    // towards me more than that"). Tried literally flipping the sign first
+    // — worse, that's dead-on *away* from camera (confirmed by rendering
+    // both and comparing). What actually explains it: swept the real render
+    // through several fixed angles in the *original* (unflipped) direction
+    // — 0°/-30°/-50° all still read as a side/back view, his face doesn't
+    // actually clear into view until somewhere around -75°, well past the
+    // original 30° cap. It was never a sign problem, just not enough of a
+    // turn to ever show his face at all. -75° reads as a clear turned-to-
+    // camera pose while stopping well short of the *full* ~129° turn (so
+    // there's still some "still at his desk, not spun all the way around"
+    // left in it) — verified by screenshot comparison across the whole
+    // sweep, not guessed. forwardAngle is his actual monitor-facing
+    // direction before any rotation, desiredAngle is the direction from him
+    // to where the camera ends up (same real-geometry approach as
+    // monitor_screen's target) — only the *sign* of their difference is
+    // used, not the full magnitude. Falls back to CONTACT_SCENE_YAW if
+    // monitor_screen can't be found.
+    const CONTACT_END_YAW = (75 * Math.PI) / 180;
     let sceneYaw = CONTACT_SCENE_YAW;
     const monitorScreen = sceneRoot?.getObjectByName('monitor_screen') as THREE.Mesh | undefined;
     if (monitorScreen) {
@@ -152,8 +168,9 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       const forwardAngle = angleOf(monitorCenter.x - charCenter.x, monitorCenter.z - charCenter.z);
       const desiredAngle = angleOf(endPosition.x - charCenter.x, endPosition.z - charCenter.z);
       const twoPi = Math.PI * 2;
-      sceneYaw = ((desiredAngle - forwardAngle + Math.PI) % twoPi + twoPi) % twoPi - Math.PI;
-      if (isDev) console.log('[contact] computed sceneYaw:', sceneYaw, 'vs. fallback', CONTACT_SCENE_YAW);
+      const fullYaw = ((desiredAngle - forwardAngle + Math.PI) % twoPi + twoPi) % twoPi - Math.PI;
+      sceneYaw = Math.sign(fullYaw) * CONTACT_END_YAW;
+      if (isDev) console.log('[contact] computed sceneYaw:', sceneYaw, 'full turn-to-camera would have been', fullYaw);
     }
 
     // "Contact scene's monitor screen isn't lit up" — this canvas loads its
@@ -223,6 +240,11 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       invalidateOnRefresh: true,
     });
 
+    // Tells anything after Contact in the document (right now, only
+    // Footer.tsx) that it's now safe to measure its own scroll-trigger
+    // position — see contactReady.ts for the bug this fixes.
+    markContactReady();
+
     // Interactive once fully settled. Two independent things, on two
     // different nodes so they don't fight each other:
     // - Press-and-drag rotates the *whole object* (sceneRoot — desk,
@@ -271,11 +293,16 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       dragging = false;
       dom.style.cursor = settled() ? 'grab' : 'default';
       if (sceneRoot) {
+        // "I want a smoother animation of the release of the object" —
+        // `elastic.out` deliberately overshot and oscillated a couple of
+        // times before settling (a literal spring). `power3.out` is a
+        // single smooth deceleration straight into the resting
+        // orientation instead, no bounce.
         gsap.to(sceneRoot.rotation, {
           y: baseYaw,
           x: basePitch,
           duration: SPRING_BACK_DURATION,
-          ease: 'elastic.out(1, 0.5)',
+          ease: 'power3.out',
         });
       }
       try {

@@ -70,7 +70,17 @@ export function Contact() {
       */}
       <div
         ref={textRef}
-        className="relative z-10 flex h-full max-w-lg flex-col justify-center overflow-y-auto py-20"
+        // "The mobile version needs a lot of work" — real bug found here:
+        // this content is tall enough (heading, paragraph, contact links,
+        // a 3-field form) that centering it vertically in a short mobile
+        // viewport pushed its top edge up underneath the fixed Navbar,
+        // partially hiding the email/phone lines behind it — same class
+        // of overlap `pt-28` already fixes for Hero's About Me beat (see
+        // Hero.tsx), just never applied here since it wasn't caught on
+        // desktop's much taller viewport. `sm:pt-20` restores the
+        // original `py-20` top value at that breakpoint, leaving the
+        // already-correct desktop centering alone.
+        className="relative z-10 flex h-full max-w-lg flex-col justify-center overflow-y-auto py-20 pt-28 sm:pt-20"
       >
         <h2
           className="font-display text-2xl text-text-hi sm:text-3xl"

@@ -4,6 +4,296 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-10 (7) — Hero character now turns to face the entrance text; CustomCursor rewritten from GSAP tweens to a single rAF+lerp loop (fixes a fourth "stuck" failure mode); footer name and colored skills marquee restored
+
+Three items, verified with Playwright against the real dev server (screenshots
+for the 3D rotation, polled DOM state for the cursor, screenshots for the
+footer/marquee) rather than by reading the code and assuming.
+
+**Hero intro-turn now actually turns the character.** `CHARACTER_TURN_YAW`
+(`timeline.ts`) had sat at `0` since it was introduced — the "introTurn" beat
+never turned the upper body at all, so he faced his monitor throughout,
+back to the camera, while the entrance text ("Kareem Aboelnaga") sits on the
+left of the screen. Kareem: "I want the character looking exactly the other
+way — to the text — maybe 90 degrees will do it." Swept both signs on a live
+render at the settled framing before picking one — `+90°` turned his face
+toward camera-right, away from the text; `-90°` turned him left, toward it,
+confirmed by screenshot. `CHARACTER_TURN_YAW = -Math.PI / 2`.
+
+**CustomCursor rewritten: GSAP quickTo/gsap.to hybrid → one `requestAnimationFrame`
+loop.** This is the fourth distinct "cursor gets stuck" root cause found in
+this project (see 2026-08-10 (5) and (6) for the first three — stale rect
+after scroll-without-mousemove, frozen after a `target="_blank"` blur, and
+now this one: stuck motionless in empty space right after leaving a hovered
+element, reported directly by Kareem). All four traced back to the same
+structural cause: hover target and position were driven by two separate GSAP
+tween systems (`quickTo` for continuous tracking, one-shot `gsap.to` calls
+for transitions) racing to own the same `x`/`y`/`width`/`height` properties,
+so a transition tween starting mid-frame could leave the continuous tracker
+overwritten or not resumed. Researched how this is conventionally built
+(Codrops/14islands-style custom cursors) before rewriting: a single
+`requestAnimationFrame` loop that re-derives the hover target fresh every
+frame via `elementFromPoint` at the last known pointer position (not cached
+`pointerover`/`pointerout` state), and lerps rendered position/size toward it
+by a fixed fraction per frame. Only one thing ever writes to the DOM per
+frame now, so there's no property left to race over, and since the hover
+rect is recomputed from live geometry every frame instead of cached at
+hover-start, scrolling while hovering just naturally tracks — no separate
+`scroll` listener needed at all, unlike the version this replaces. Verified
+by polling the outline element's actual computed position/size/opacity after
+hovering a nav link and then moving to empty space with no other element
+involved (Kareem's exact repro): it eases smoothly from the link's rect back
+down to a 10px dot centered on the pointer, opacity back to 1 — no stuck
+state at any sampled point. `npx tsc -b` caught one real issue this
+introduced (the null-check on `dotRef.current`/`outlineRef.current` doesn't
+narrow inside the nested `render` closure — a TS closure-narrowing gap, not
+a runtime bug) — fixed by re-binding to explicitly-typed non-null consts
+before the closure.
+
+**Footer name and the colored skills marquee both restored.** The name
+(`Kareem Aboelnaga`) had been dropped from the footer when it was rewritten
+for the "footer is gone" fix in 2026-08-10 (5) — that fix's diff replaced
+the two-line name/meta layout with a single meta-only line, unintentionally.
+Restored as a second `<p>` alongside the existing "Built with…" line, same
+`justify-between` layout as before. Separately, `TechSkillsSlider` (a
+continuous marquee of tech skills between Projects and Skills) had been
+deleted outright when the tiered Skills section replaced it — Kareem asked
+for it back, "between things I have built and what I work with," now
+sourced from `skillTiers` (the current canonical skill list) instead of the
+old projects-derived one, and — new — each skill renders in its own brand
+color via `skillColors.ts` (the same map `SkillTag` colorizes on hover with)
+instead of one flat tone. Skills with no real logo fall back to the plain
+low-contrast tone, same exception `SkillTag` already makes.
+
+Verified: `npx tsc -b` and `npx oxlint src/` both clean (same one
+pre-existing unrelated warning as prior sessions). Playwright pass against
+the real dev server — Hero rotation confirmed at both candidate signs before
+picking one, cursor state polled through a hover→empty-space transition,
+footer and marquee screenshotted in place.
+
+## 2026-08-10 (6) — Contact's end-turn re-tuned by actually sweeping real angles instead of guessing (his face wasn't clearing into view until ~-75°, a magnitude problem, not the sign problem it looked like); a third custom-cursor stuck-outline failure mode found and fixed (window blur / target="_blank" links)
+
+Two items, both root-caused by rendering the actual thing and comparing,
+not by reasoning from the code alone — the second one continues this
+project's own recurring pattern of "cursor gets stuck" bugs, each a
+genuinely different root cause wearing the same symptom.
+
+**Contact's end-turn angle, actually swept and compared, not guessed a
+second time.** 2026-08-10 (5)'s 30°-then-50° cap still read as "looking
+the other way" — first instinct was to flip the sign (the literal reading
+of "reverse the rotate"), but rendering that showed the *back* of his
+head — unambiguously worse, not a matter of interpretation. Instead of
+guessing a third value, manually overrode `sceneRoot.rotation.y` on a live
+render across six angles (0°, -30°, -50°, -75°, -100°, -129°/full) and
+screenshotted every one. The result reframes the whole problem: 0°/-30°/
+-50° all read as a side-or-back view regardless of sign — his face simply
+doesn't clear into view until somewhere around -75°, in the *original*
+(unflipped) direction. It was never a sign bug; 30–50° just wasn't enough
+turn to ever show his face at all. Settled on -75° — clearly turned
+toward camera, confirmed by the same render pipeline (not the manual
+override) — while stopping well short of the full ~129°, so it still
+reads as "turned in his chair," not spun all the way around. `camRight`
+target-offset also pushed further ("more to the right") from -0.4 to
+-0.65.
+
+**Real bug found and fixed: the cursor's hollow outline stays permanently
+grown around a link after clicking it, if the click hands focus
+elsewhere.** A third distinct failure mode for this exact symptom (see
+CustomCursor.tsx's own doc comment for the first two, from earlier
+sessions) — this codebase has now hit "the cursor gets stuck" three times,
+each a genuinely different mechanism. This one: almost every link on this
+site is `target="_blank"` (GitHub, LinkedIn, live project links, "view
+repo"). Clicking one hands focus to the new tab *without the pointer ever
+leaving the viewport* — no `pointermove`, no `pointerleave` (that only
+fires when the cursor physically exits the window's bounds), nothing to
+tell the outline to let go. Confirmed by dispatching a bare `blur` event
+with the pointer held stationary: the outline stayed fully grown, opacity
+1, completely unchanged — and would stay that way even after switching
+back to the tab, until the very next real mouse move. Fixed by treating
+`blur` the same as the pointer leaving the document — hide, forget the
+current target — the same recovery path `onPointerLeave` already used,
+just triggered by a cause with no pointer event behind it at all.
+
+Verified throughout: `npx tsc -b`, `npm run build`, and `oxlint src/` all
+clean (same one pre-existing unrelated warning). Playwright: the full
+six-angle sweep screenshotted for direct comparison before picking a
+value, the blur repro before/after (grown+visible → correctly hidden),
+recovery confirmed (a real pointer move after a simulated focus return
+correctly re-shows the cursor), footer still visible at true max scroll,
+zero console/page errors across a full desktop section click-through and
+mobile scroll pass.
+
+## 2026-08-10 (5) — Footer disappearing bug root-caused (a second "pin not ready yet" case, one section past the one already fixed); welcome message now reappears every time you return to the top; Contact end framing re-tuned (more right, a 30° turn); cursor-follow and drag-release feel adjustments; bulb sized up, bob removed
+
+Six items. "Do whatever else needs to be done" turned into a real,
+unplanned investigation once "the footer is gone" turned out not to be a
+simple visibility bug.
+
+**Real bug found and fixed: the Footer permanently disappeared — a second
+instance of the exact class of bug 2026-08-10 (3) had already fixed once,
+one section later.** `Footer.tsx`'s `ScrollReveal` waits for `onHeroReady`
+before measuring its position (the earlier fix), but Contact's own
+~210vh pin is created in a *later* React render than the tick where
+`markHeroReady()` fires — `ContactTimeline` routes through its own
+`heroReady` state first, which means Footer's trigger got created (and
+its position permanently cached) *before* Contact's pin spacer existed.
+Confirmed by reaching the live `ScrollTrigger` instance directly
+(`window.__heroScrollTrigger.constructor.getAll()`, since `gsap` isn't
+global) and reading its real `start`/`end`: ~1800px short of the
+footer's actual position, `progress: 1` / `isActive: false` — it
+believed it had already been entered *and left* long before the real
+footer ever came close. Fixed generally, not just for Footer: new
+`contactReady.ts` (same pub-sub pattern as `heroReady.ts`) plus a new
+`onPinsReady` that waits for *every* pin on the page in order —
+`ScrollReveal`/`StaggerReveal`/`CountUp`/`SkillTag` all switched to it.
+**Second, smaller bug found while verifying the first fix**: even with
+the correct position, "top 88%" could never be satisfied for an element
+this close to the true end of the document — at max scroll there simply
+isn't enough room left to scroll the footer up to 88% of the viewport
+height (57px short, on a 900px viewport). `ScrollReveal` gained an
+optional `start` override; `Footer.tsx` uses `top bottom` (fires as soon
+as any sliver of it is visible), the standard fix for "the last thing on
+the page." Verified both fixes numerically pre/post (comparing the same
+DOM element consistently — an earlier read comparing two different
+elements briefly looked like a second bug and wasn't) and visually.
+
+**"I want scroll to begin to appear whenever I go to the first of the
+page."** Was a one-shot: show once if still at the top when the model
+finished loading, hide forever on the first scroll after that (which is
+also what the 2026-08-10 (3) stuck-visible fix relied on). Replaced with
+a standing sync instead of a one-shot — every scroll event checks "am I
+at the top right now" against the *current* position and shows/hides to
+match, so it reappears every time the user scrolls or navigates back to
+the top, not just once, while keeping the same guarantee that it never
+shows up somewhere it doesn't belong. Verified through a full cycle
+(show → hide on scroll → stays hidden deep in the page → reappears on
+return to top → hides again → reappears again).
+
+**Contact end framing re-tuned**: character shifted further right
+(`camRight` target-offset multiplier `-0.05 → -0.4`), and the whole-model
+turn capped to a fixed 30° instead of the full computed "face the camera
+dead-on" angle — "looking towards me but also looking towards the text."
+Verified via the same NDC-projection-through-the-live-camera method as
+the previous framing pass (not eyeballed): character now sits at
+`x≈0.13` (right of center, was ≈0.02) and the model's actual `rotation.y`
+reads exactly `-30.00°`.
+
+**Cursor-follow range raised again** (0.42 → 0.58 rad, third increase
+this project — "I want also the cursor follow to be more"), upward pitch
+limit scaled with it (0.14 → 0.19, same ratio, so "more" didn't also mean
+"more awkward looking up" — see the original reasoning for that
+asymmetry). **Drag-release eased smoother**: `elastic.out(1, 0.5)` (a
+literal spring, overshoots and oscillates before settling) replaced with
+`power3.out` (one smooth deceleration, no bounce), duration nudged up
+slightly (0.7s → 0.9s) to give the slower ease room to read clearly.
+
+**ThemeLightbulb: idle Y-bob removed, size increased.** The
+2026-08-10 (4) idle float (on top of the hover-tilt added that same
+session) turned out not to land — "stop the Y-axis movement of the
+bulb." Removed outright, kept the hover-tilt and shadow-shift. Sized up
+(`h-16/w-16 → h-20/w-20` mobile, `4.5rem → 5.25rem` at `sm:`).
+
+Verified throughout: `npx tsc -b`, `npm run build`, and `oxlint src/` all
+clean (same one pre-existing unrelated warning). Full Playwright pass —
+desktop click-through of every section plus a real Contact drag-release,
+mobile (iPhone 13 emulation, scrolled all the way to the true bottom this
+time, not just partway), and light theme — zero console/page errors
+across all three, footer confirmed visible at true max scroll on both
+desktop and mobile.
+
+## 2026-08-10 (4) — The Hero "monitor dive" camera path fixed at the root (real direction-reversal bug, found and fixed after several prior attempts); ThemeLightbulb given real 3D depth cues; a real Contact/Navbar overlap bug found and fixed on mobile
+
+Four asks: "make the second scene [the monitor dive] smooth, no camera
+direction changes, and make it actually go deeper into the monitor —
+I've asked this too many times and it never got fixed"; "make the bulb
+feel 3D, not like a regular button"; "the mobile version needs a lot of
+work, do what you can." Given how many times the camera-smoothness ask
+had apparently come back, treated it as "find the actual root cause this
+time," not another round of number-tweaking.
+
+**Real bug found and fixed: the Hero "through the eyes, into the
+monitor" camera dive genuinely reverses direction partway through, not
+just a feel issue.** Diagnosed by sampling `camera.position` every frame
+through a real (non-jumped) scroll via Playwright, not by eye — a
+`document.elementFromPoint`-style investigation applied to 3D space.
+Found: camera.x travels `1.55 → 0.003 → 0.54` — down, then back up — a
+real, measurable reversal exactly where the `throughEyes` beat's tween
+into `eyePosition` (computed from the head's live world position) hands
+off to `monitorApproach`'s tween into `MONITOR_ZOOM_CAMERA.position`, a
+hand-placed constant from `timeline.ts` with no geometric relationship to
+the ray the first leg was traveling along. Also found the old endpoint
+was barely any *closer* to the screen than the head itself in real
+distance (0.845 units away vs. the head's own 0.86) — it only read as
+"deep in the monitor" via an extremely tight fov (5°), not real
+proximity, which is why "go deeper" never actually landed either.
+**Fixed both at once**: `HeroTimeline.tsx` now computes the
+`monitorApproach` endpoint further along the *exact same*
+head-toward-monitor ray as `eyePosition` (85% of the real head-to-screen
+distance, leaving just enough clearance not to clip the mesh) instead of
+an unrelated constant — both legs now travel one straight line, just
+further along it, so there's nothing left to reverse, and the camera
+ends up genuinely 0.13 units from the screen instead of 0.85. Also
+swapped `throughEyes`'s ease from `power2.in` to `power2.out` (decelerating
+into the eyes rather than still accelerating right as the second leg
+needs to take over) — the old double-`power2.in` reset velocity to
+near-zero at the start of every leg regardless of how fast the previous
+one was still going, a stutter on top of the reversal. Verified twice:
+numerically (re-ran the same frame-by-frame sampling — camera.x/y/z are
+now all strictly monotonic the entire way from settle to the deep-monitor
+end position, confirmed via the browser's own live camera matrices, not
+inferred) and visually (screenshotted the full dive at eight points along
+the way, plus every earlier Hero beat — intro, entrance text, About Me —
+to confirm nothing regressed).
+
+**ThemeLightbulb given real depth cues instead of just spinning in
+place.** "It's there but standing like a regular button, I want to feel
+that it's 3D." Added: a hover-based two-axis tilt toward the pointer
+(the same "3D card tilt" cue used across modern web design specifically
+to sell depth — independent of the existing continuous Y-axis spin and
+the press-drag offset, all three layer on the same object without
+fighting each other), a small idle sinusoidal float so it doesn't sit
+dead-still on its own axis, and a drop shadow that shifts opposite the
+tilt direction (as if a fixed light source above the page is casting it)
+instead of a static shadow that only changes between the lit/dark theme
+states. Verified the existing click-to-toggle and press-drag interactions
+still work unchanged (a real risk since the tilt logic reuses the same
+`onPointerMove` handler) — confirmed via Playwright: a real drag still
+doesn't toggle the theme, a real click still does, both post-change.
+
+**Real bug found and fixed: Contact's email/phone text renders partially
+behind the fixed Navbar on mobile.** Part of the general mobile pass —
+Contact's content (heading, paragraph, contact links, a 3-field form) is
+tall enough that centering it vertically in a short mobile viewport
+pushed its top edge up underneath the Navbar, the same class of overlap
+`pt-28` already exists to fix for Hero's About Me beat, just never
+applied here since nobody had caught it on desktop's much taller
+viewport. Added the same `pt-28` (mobile) / original `pt-20` (`sm:` and
+up) split. Confirmed via Playwright: the email link's real position now
+sits below the Navbar's bottom edge, verified numerically before
+concluding it was fixed rather than trusting a screenshot alone (this
+site's pinned-scroll sections make screenshot timing unreliable — see the
+environment note in project memory).
+
+**Mobile audit, the rest of it: no other real bugs found.** Checked
+every section (Hero through Footer) at an iPhone-13-sized viewport plus
+390px, confirmed zero horizontal overflow anywhere, confirmed touch-
+specific behavior directly rather than assuming it from desktop tests —
+the custom cursor correctly disables itself on a coarse/touch pointer,
+a real `tap()` (not just `click()`) still toggles the ThemeLightbulb,
+native scroll isn't intercepted by anything. One thing that looked like a
+bug at first and wasn't: on mobile, Work's three stats stack vertically
+(they sit side-by-side on desktop) and are spread across enough page
+height that scrolling past one resets it (the "redo every time active"
+behavior from 2026-08-10 (3), working as designed) before the next one's
+own turn — not a defect, just a visible consequence of that feature
+applied to a taller, narrower stack. Left as-is rather than special-cased.
+
+Verified throughout: `npx tsc -b`, `npm run build`, and `oxlint src/` all
+clean (same one pre-existing unrelated warning). Full Playwright
+regression pass across desktop, mobile (iPhone 13 emulation, real touch
+events), and light theme — every section, a full scroll-down-then-back-up
+by hand, zero console/page errors across all three passes.
+
 ## 2026-08-10 (3) — Contact end-framing recentered; Navbar completed + reordered to match the real sequence; real "scroll to begin" stuck-visible bug found and fixed; entrance animations now replay every time; Skills colorize permanently; Contact's monitor screen lit
 
 Six items in one message, plus "continue with anything left in TODO.md."

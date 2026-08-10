@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import gsap from 'gsap';
 
 // Elements the cursor treats as "clickable" — outlines around these instead
 // of the small dot. `[data-cursor-hover]` is an escape hatch for anything
@@ -13,39 +12,44 @@ const HOVER_SELECTOR = 'a, button, input, textarea, select, [role="button"], [da
 const DOT_SIZE = 10;
 const OUTLINE_PADDING = 10;
 const OUTLINE_RADIUS = 10;
+// Lerp factors (0-1, per frame) — how much of the remaining distance to the
+// target each frame closes. Dot tracks almost 1:1; the outline eases behind
+// it, same relative feel as the old quickTo durations (0.12s dot / 0.35s
+// outline) but as a continuous per-frame fraction instead of a tween.
+const DOT_LERP = 0.35;
+const OUTLINE_LERP = 0.18;
 
 /**
  * "Turn my cursor into a white circular void that, when it hovers on any
  * clickable item, makes an outline outside the hovered item." Two layered
  * fixed divs: a small solid dot that tracks the pointer 1:1(ish), and a
  * ring that's dot-sized by default but morphs to trace the bounding box of
- * whatever's under the pointer, growing outward from it (padding, not
- * clipping to its edges). Desktop-only — gated on a fine pointer so touch
- * devices keep native tap behavior, and skipped under
+ * whatever's under the pointer. Desktop-only — gated on a fine pointer so
+ * touch devices keep native tap behavior, and skipped under
  * prefers-reduced-motion since the whole point of this is motion.
  *
- * Hover state is derived fresh from `e.target` on every single
- * `pointermove`, not from separate `pointerover`/`pointerout` listeners —
- * "sometimes the cursor becomes buggy after leaving a hovered space" was
- * exactly the failure mode of the discrete-event approach: any missed or
- * out-of-order enter/leave pair (fast mouse movement across adjacent
- * elements, a child element swallowing the event, the pointer leaving the
- * window mid-hover) left `hovering` stuck true with no more events left to
- * un-stick it. Re-deriving "what's actually under the pointer right now"
- * every move is self-correcting by construction — there's no persistent
- * state that can drift from reality for more than one frame.
+ * Rewritten from a GSAP quickTo/gsap.to hybrid after that version kept
+ * producing new "cursor stuck" failure modes (stuck beside a hovered
+ * element after scrolling, stuck fully grown after a target="_blank" blur,
+ * and — the one that prompted this rewrite — stuck motionless in empty
+ * space right after leaving a hovered element). All of those traced back
+ * to the same structural issue: hover target and cursor position were
+ * driven by *two separate tween systems* (one-shot `gsap.to` calls for
+ * transitions, `quickTo` for continuous tracking) racing to own the same
+ * `x`/`y` properties, so a transition landing mid-frame could leave the
+ * continuous tracker overwritten or never resumed.
  *
- * "The cursor is stuck beside the last hovered object" — a second, later
- * failure mode, only reachable on a scroll-heavy page like this one:
- * `pointermove` only fires on actual mouse motion, never from a wheel
- * scroll or this site's own GSAP-driven `scrollTo` (Navbar/SkipIntro fast-
- * forward jumps). Hover an in-flow element (a project card), then scroll
- * with the mouse stationary — the element's bounding rect moves out from
- * under a pointer that never generated an event to notice. The outline sat
- * frozen at the stale screen coordinates until the pointer eventually moved
- * again. Fixed by re-evaluating hover on `scroll` too, via
- * `document.elementFromPoint` at the last known pointer position instead of
- * `e.target` (scroll events carry no coordinates of their own).
+ * This version is a single continuous `requestAnimationFrame` loop instead:
+ * one function, called every frame, that (1) re-derives what's under the
+ * pointer *right now* via `elementFromPoint` at the last known coordinates
+ * — not cached hover state from a `pointerover`/`pointerout` pair that
+ * could've been missed — and (2) lerps the rendered position/size toward
+ * that target by a fixed fraction each frame. There's only ever one thing
+ * writing to the DOM per frame, so there's no property to race over, and
+ * because the hover target and its `getBoundingClientRect()` are both
+ * recomputed fresh every frame (not cached from the moment hover started),
+ * scrolling while hovering an in-flow element just naturally tracks it —
+ * no separate `scroll` listener needed, unlike the old version.
  */
 export function CustomCursor() {
   const dotRef = useRef<HTMLDivElement>(null);
@@ -58,117 +62,101 @@ export function CustomCursor() {
     const dot = dotRef.current;
     const outline = outlineRef.current;
     if (!dot || !outline) return;
+    // Re-bound as explicitly non-null: TS's control-flow narrowing from the
+    // guard above doesn't carry into the `render` closure defined below
+    // (only the declared type does), so `dot`/`outline` would otherwise be
+    // seen as nullable again inside it.
+    const dotEl: HTMLDivElement = dot;
+    const outlineEl: HTMLDivElement = outline;
 
     document.documentElement.classList.add('custom-cursor-active');
 
-    gsap.set([dot, outline], { xPercent: -50, yPercent: -50 });
-    gsap.set(outline, { width: DOT_SIZE, height: DOT_SIZE, borderRadius: 999 });
-
-    const moveDotX = gsap.quickTo(dot, 'x', { duration: 0.12, ease: 'power3.out' });
-    const moveDotY = gsap.quickTo(dot, 'y', { duration: 0.12, ease: 'power3.out' });
-    const moveOutlineX = gsap.quickTo(outline, 'x', { duration: 0.35, ease: 'power3.out' });
-    const moveOutlineY = gsap.quickTo(outline, 'y', { duration: 0.35, ease: 'power3.out' });
-
+    let mouseX = 0;
+    let mouseY = 0;
+    let hasMouse = false;
     let visible = false;
-    let currentTarget: Element | null = null;
-    let lastX = 0;
-    let lastY = 0;
 
-    // x/y and width/height/radius always animate together in ONE tween,
-    // whether growing onto a target or shrinking back to a dot at the
-    // pointer's current position — "the cursor maintains its dimensions and
-    // keeps the rectangle there in an empty space after leaving a hovered
-    // object" was two separate tweens racing: growToTarget used to animate
-    // x/y *and* size together, but the old shrinkToDot only touched
-    // width/height/radius, leaving x/y still mid-flight toward the just-left
-    // element (or fully overwritten seconds later by unrelated quickTo
-    // calls) whenever the pointer left before the grow tween had finished.
-    // `overwrite: 'auto'` makes this tween the sole owner of every property
-    // it touches the instant it starts, so there's no split-brain state.
-    function setOutline(x: number, y: number, width: number, height: number, radius: number, duration: number) {
-      gsap.to(outline, { x, y, width, height, borderRadius: radius, duration, ease: 'power3.out', overwrite: 'auto' });
-    }
+    let dotX = 0;
+    let dotY = 0;
+    let outlineX = 0;
+    let outlineY = 0;
+    let outlineW = DOT_SIZE;
+    let outlineH = DOT_SIZE;
+    let outlineR = 999;
 
-    // Shared by pointermove and scroll — the only difference is where x/y
-    // comes from (a real event vs. the last known pointer position, since
-    // scroll events carry none). `fast` shortens the tween so a scrolled-
-    // away card's outline snaps to the new rect instead of visibly lagging
-    // behind it.
-    function evaluateHover(x: number, y: number, fast: boolean) {
-      const target = document.elementFromPoint(x, y);
-      const hit = target instanceof Element ? target.closest(HOVER_SELECTOR) : null;
-      if (hit !== currentTarget) {
-        currentTarget = hit;
-        if (hit) {
-          const rect = hit.getBoundingClientRect();
-          setOutline(
-            rect.left + rect.width / 2,
-            rect.top + rect.height / 2,
-            rect.width + OUTLINE_PADDING * 2,
-            rect.height + OUTLINE_PADDING * 2,
-            OUTLINE_RADIUS,
-            fast ? 0.15 : 0.35,
-          );
-          gsap.to(dot, { opacity: 0, duration: 0.2 });
-        } else {
-          setOutline(x, y, DOT_SIZE, DOT_SIZE, 999, fast ? 0.15 : 0.3);
-          gsap.to(dot, { opacity: 1, duration: 0.2 });
-        }
-      } else if (hit) {
-        // Same element still under the pointer, but its rect may have moved
-        // (scrolled) since the outline was last positioned — re-trace it.
+    let rafId = 0;
+
+    function render() {
+      const target = hasMouse ? document.elementFromPoint(mouseX, mouseY) : null;
+      const hit = target ? target.closest(HOVER_SELECTOR) : null;
+
+      let targetX = mouseX;
+      let targetY = mouseY;
+      let targetW = DOT_SIZE;
+      let targetH = DOT_SIZE;
+      let targetR = 999;
+      if (hit) {
         const rect = hit.getBoundingClientRect();
-        setOutline(
-          rect.left + rect.width / 2,
-          rect.top + rect.height / 2,
-          rect.width + OUTLINE_PADDING * 2,
-          rect.height + OUTLINE_PADDING * 2,
-          OUTLINE_RADIUS,
-          0.15,
-        );
+        targetX = rect.left + rect.width / 2;
+        targetY = rect.top + rect.height / 2;
+        targetW = rect.width + OUTLINE_PADDING * 2;
+        targetH = rect.height + OUTLINE_PADDING * 2;
+        targetR = OUTLINE_RADIUS;
       }
+
+      dotX += (mouseX - dotX) * DOT_LERP;
+      dotY += (mouseY - dotY) * DOT_LERP;
+      outlineX += (targetX - outlineX) * OUTLINE_LERP;
+      outlineY += (targetY - outlineY) * OUTLINE_LERP;
+      outlineW += (targetW - outlineW) * OUTLINE_LERP;
+      outlineH += (targetH - outlineH) * OUTLINE_LERP;
+      outlineR += (targetR - outlineR) * OUTLINE_LERP;
+
+      dotEl.style.transform = `translate3d(${dotX}px, ${dotY}px, 0) translate(-50%, -50%)`;
+      dotEl.style.opacity = visible && !hit ? '1' : '0';
+
+      outlineEl.style.transform = `translate3d(${outlineX}px, ${outlineY}px, 0) translate(-50%, -50%)`;
+      outlineEl.style.width = `${outlineW}px`;
+      outlineEl.style.height = `${outlineH}px`;
+      outlineEl.style.borderRadius = `${outlineR}px`;
+      outlineEl.style.opacity = visible ? '1' : '0';
+
+      rafId = requestAnimationFrame(render);
     }
+    rafId = requestAnimationFrame(render);
 
     function onPointerMove(e: PointerEvent) {
-      if (!visible) {
-        visible = true;
-        gsap.to([dot, outline], { opacity: 1, duration: 0.2 });
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      if (!hasMouse) {
+        // First-ever move: snap instantly to the real position instead of
+        // lerping in from (0, 0).
+        hasMouse = true;
+        dotX = outlineX = mouseX;
+        dotY = outlineY = mouseY;
       }
-      lastX = e.clientX;
-      lastY = e.clientY;
-      moveDotX(e.clientX);
-      moveDotY(e.clientY);
-
-      evaluateHover(e.clientX, e.clientY, false);
-      if (!currentTarget) {
-        // Not hovering anything — keep tracking the pointer smoothly (the
-        // fast path; evaluateHover already handled any transition frame).
-        moveOutlineX(e.clientX);
-        moveOutlineY(e.clientY);
-      }
+      visible = true;
     }
 
-    function onScroll() {
-      if (!visible) return;
-      evaluateHover(lastX, lastY, true);
-    }
-
-    function onPointerLeave(e: PointerEvent) {
+    // Window losing focus (a target="_blank" link stealing it, Cmd+Tab,
+    // devtools) or the pointer physically leaving the viewport — hide
+    // either way. It reappears correctly positioned on the next real
+    // pointermove, since position/hover are re-derived from scratch every
+    // frame rather than restored from stale state.
+    function onHide() {
       visible = false;
-      currentTarget = null;
-      gsap.to([dot, outline], { opacity: 0, duration: 0.2 });
-      setOutline(e.clientX, e.clientY, DOT_SIZE, DOT_SIZE, 999, 0.2);
     }
 
     window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
-    document.addEventListener('pointerleave', onPointerLeave);
+    document.addEventListener('pointerleave', onHide);
+    window.addEventListener('blur', onHide);
 
     return () => {
       document.documentElement.classList.remove('custom-cursor-active');
+      cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('scroll', onScroll, { capture: true });
-      document.removeEventListener('pointerleave', onPointerLeave);
+      document.removeEventListener('pointerleave', onHide);
+      window.removeEventListener('blur', onHide);
     };
   }, []);
 
@@ -177,12 +165,12 @@ export function CustomCursor() {
       <div
         ref={dotRef}
         aria-hidden="true"
-        className="pointer-events-none fixed left-0 top-0 z-[100] h-[10px] w-[10px] rounded-full bg-text-hi opacity-0 mix-blend-difference"
+        className="pointer-events-none fixed left-0 top-0 z-[100] h-[10px] w-[10px] rounded-full bg-text-hi opacity-0 mix-blend-difference will-change-transform"
       />
       <div
         ref={outlineRef}
         aria-hidden="true"
-        className="pointer-events-none fixed left-0 top-0 z-[100] border border-text-hi opacity-0 mix-blend-difference"
+        className="pointer-events-none fixed left-0 top-0 z-[100] border border-text-hi opacity-0 mix-blend-difference will-change-transform"
       />
     </>
   );

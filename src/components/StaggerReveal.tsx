@@ -1,7 +1,7 @@
 import { createElement, useEffect, useRef, type ElementType, type ReactNode } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { onHeroReady } from '../scenes/heroReady';
+import { onPinsReady } from '../scenes/contactReady';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -33,10 +33,11 @@ export function StaggerReveal({
 }) {
   const ref = useRef<HTMLElement>(null);
 
-  // Gated on `onHeroReady` for the same reason as ScrollReveal.tsx — a
-  // trigger created before Hero's pin spacer exists measures itself
-  // against a still-short page and fires far too early once real
-  // scrolling reaches that stale (now-wrong) pixel offset.
+  // Gated on `onPinsReady` (waits for Hero's *and* Contact's pins, not
+  // just Hero's) for the same reason as ScrollReveal.tsx — a trigger
+  // created before every pin on the page exists measures itself against a
+  // still-short page and fires far too early once real scrolling reaches
+  // that stale (now-wrong) pixel offset. See contactReady.ts.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -52,7 +53,7 @@ export function StaggerReveal({
       gsap.to(items, { opacity: 0, y: 10, scale: 0.9, duration: 0.3, stagger: stagger / 2, ease: 'power1.in', overwrite: 'auto' });
 
     let st: ScrollTrigger | null = null;
-    const unsubscribe = onHeroReady(() => {
+    const unsubscribe = onPinsReady(() => {
       st = ScrollTrigger.create({
         trigger: el,
         start: 'top 90%',

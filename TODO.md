@@ -5,6 +5,66 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Right now: unfinished from the last session
 
+- **2026-08-10 (7), done — see DONE.md for the full writeup.** Hero
+  character now turns -90° during the intro turn to face the entrance text
+  instead of staying turned toward his monitor the whole time (both signs
+  swept on a live render before picking one). CustomCursor rewritten from a
+  GSAP quickTo/gsap.to hybrid to a single `requestAnimationFrame` + lerp
+  loop — fixes a fourth distinct "cursor gets stuck" root cause (frozen in
+  empty space right after leaving a hovered link/label), and removes the
+  need for a separate `scroll` listener since hover rects are now recomputed
+  fresh every frame instead of cached. Footer's name restored (dropped by
+  accident in an earlier footer fix) and the deleted `TechSkillsSlider`
+  marquee brought back between Projects and Skills, now colored per-skill
+  via `skillColors.ts` instead of one flat tone.
+- **2026-08-10 (6), done — see DONE.md for the full writeup.** Contact's
+  end-turn re-tuned by actually sweeping real angles on a live render (0°
+  through the full ~129°) and comparing screenshots, not guessing a second
+  time — "reverse the rotate" first read as a sign flip, which rendering
+  proved wrong (showed the back of his head); the real issue was
+  magnitude, not sign — his face doesn't clear into view until ~-75°.
+  Settled there. Also: a third distinct root cause found for the
+  recurring "cursor gets stuck" symptom — clicking any of this site's many
+  `target="_blank"` links hands focus to the new tab without the pointer
+  ever leaving the viewport, so neither `pointermove` nor `pointerleave`
+  ever fire to release the outline. Fixed by treating `blur` the same as
+  `pointerleave`.
+- **2026-08-10 (5) batch, done — see DONE.md for the full writeup.**
+  "The footer is gone" turned out to be a real, root-caused bug: the
+  exact same class of "measured its position before every pin on the
+  page existed" issue 2026-08-10 (4) fixed for `CountUp`/etc., just one
+  pin later — Contact's own pin is created in a *later* React render than
+  `markHeroReady()` fires, so Footer's `ScrollReveal` (which only waited
+  for Hero) cached a position ~1800px short of reality and stayed stuck
+  invisible forever. Fixed generally via a new `onPinsReady` (waits for
+  every pin, not just Hero's — see `contactReady.ts`), plus a second,
+  smaller fix once that was confirmed working: an element this close to
+  the true end of the document can never satisfy the default "top 88%"
+  threshold (57px short of reachable on a 900px viewport, at true max
+  scroll) — `ScrollReveal` gained an optional `start` override, Footer
+  uses the standard `top bottom` fix for "last thing on the page." Also:
+  "scroll to begin" now reappears every time you return to the top of the
+  page, not just once ever; Contact's end framing re-tuned (character
+  further right, a fixed 30° turn instead of facing the camera dead-on —
+  verified via NDC projection, not eyeballed); cursor-follow raised again
+  (0.42 → 0.58 rad); drag-release eased smoother (no more elastic
+  overshoot); ThemeLightbulb's idle Y-bob removed, sized up a bit.
+- **2026-08-10 (4) batch, done — see DONE.md for the full writeup.** The
+  Hero "monitor dive" camera path (through the eyes, into the monitor)
+  had a real, verified direction-reversal bug — "I've asked this too many
+  times and it never got fixed" — root-caused this time via frame-by-frame
+  Playwright sampling of `camera.position` through a real scroll (not
+  guessed), fixed by computing the second leg's endpoint along the exact
+  same ray as the first instead of an unrelated hand-placed point;
+  monotonic on every axis now, confirmed numerically. ThemeLightbulb
+  given real depth cues (hover-parallax tilt, idle float, a shadow that
+  shifts with the tilt) instead of just spinning in place. Mobile pass:
+  one real bug found and fixed (Contact's email/phone text was rendering
+  partially behind the fixed Navbar on a short mobile viewport — same
+  `pt-28` fix already used for Hero's About Me beat, just missing here);
+  rest of the mobile audit (every section, touch-specific behavior —
+  cursor correctly off, real `tap()` still toggles the bulb, no horizontal
+  overflow) came back clean.
 - **2026-08-10 (3) batch — six items plus one TODO carry-over, done — see
   DONE.md for the full writeup.** Contact's end framing recentered
   (verified via NDC projection through the live camera, not eyeballed);
@@ -95,20 +155,24 @@ it hasn't been decided or started yet — tell Claude to do it.
   Not a bug, a deliberate choice per CONTENT.md's micro-copy table;
   flagging here so it doesn't look like an oversight if revisited.
 - **Contact's whole-object drag (rotate + spring-back, changed from
-  translate to rotate 2026-08-10)** — `DRAG_SENSITIVITY`/
-  `DRAG_YAW_RANGE`/`DRAG_PITCH_RANGE`/`SPRING_BACK_DURATION` in
-  `ContactTimeline.tsx` are first-pass numbers, confirmed to work exactly
-  as coded (Playwright read `sceneRoot.rotation` directly: clamps to
-  precisely `baseYaw ± 0.5`/`± 0.35` rad under an oversized drag, springs
-  back to the exact original orientation on release) but not felt out by
-  hand — "does this drag distance/range *feel* right" is a judgment call
-  only Kareem can make. Same for the head cursor-follow range (0.42 rad,
-  upward half now separately clamped to 0.14 rad).
+  translate to rotate 2026-08-10, release eased smoother 2026-08-10 (5))**
+  — `DRAG_SENSITIVITY`/`DRAG_YAW_RANGE`/`DRAG_PITCH_RANGE`/
+  `SPRING_BACK_DURATION` in `ContactTimeline.tsx` are first-pass numbers,
+  confirmed to work exactly as coded (Playwright read `sceneRoot.rotation`
+  directly: clamps to precisely `baseYaw ± 0.5`/`± 0.35` rad under an
+  oversized drag, springs back to the exact original orientation on
+  release, now via a smooth `power3.out` deceleration instead of an
+  elastic bounce) but not felt out by hand — "does this drag distance/
+  range *feel* right" is a judgment call only Kareem can make. Same for
+  the head cursor-follow range (0.58 rad as of 2026-08-10 (5), upward half
+  clamped to 0.19 rad, same ratio as before).
 - **Pacing numbers** (`HERO_SCROLL_PIN_VH` 620, `CONTACT_SCROLL_PIN_VH`
   210, the rebalanced `HERO_BEATS` fractions, Navbar/SkipIntro's
-  `PIXELS_PER_SECOND`/durations, `throughEyes`/`monitorApproach`
-  timing) are all judgment calls made by screenshot/Playwright, not
-  measured against Kareem actually scrolling through them.
+  `PIXELS_PER_SECOND`/durations) are judgment calls made by
+  screenshot/Playwright, not measured against Kareem actually scrolling
+  through them. (`throughEyes`/`monitorApproach`'s *path* is no longer a
+  guess — see 2026-08-10 (4) — but the exact timing split between the two
+  beats still is.)
 - **Light theme screenshot-reviewed section by section, 2026-08-09
   (10) — no issues found**, but still not reviewed by Kareem himself
   the way the dark palette was back in Stage 1, so leaving this open as
@@ -119,12 +183,14 @@ it hasn't been decided or started yet — tell Claude to do it.
   word-reveal (`HeroTimeline.tsx`) bakes its colors in once at
   construction, so toggling theme mid-session while already scrolled
   into that beat won't retroactively recolor it.
-- **Mobile viewport now checked, 2026-08-09 (10) — one real bug found
-  and fixed** (`SkipIntro`/`ThemeLightbulb` overlapping the Navbar's
-  "Work" button at 390px, see DONE.md), rest confirmed clean
-  (Work/Projects/Skills/About/Background stack sensibly, no horizontal
-  overflow anywhere). Not checked: anything below 390px, or landscape
-  orientation.
+- **Mobile viewport checked twice now** — 2026-08-09 (10) found/fixed
+  `SkipIntro`/`ThemeLightbulb` overlapping the Navbar's "Work" button at
+  390px; 2026-08-10 (4) found/fixed Contact's text overlapping the Navbar
+  on a short viewport, and additionally confirmed touch-specific behavior
+  directly (not just resized-desktop testing) — cursor correctly disabled
+  on touch, a real `tap()` still works, no horizontal overflow anywhere
+  site-wide. Not checked: anything below 375px, landscape orientation, or
+  a real device (all of the above is Playwright's iPhone-13 emulation).
 - **`CODE_WORDS` fly-through** content is still a first guess, not
   tuned against how it actually feels scrolling through it in real
   time.

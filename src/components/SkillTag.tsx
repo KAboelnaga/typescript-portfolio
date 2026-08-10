@@ -3,7 +3,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { skillIconPaths } from '../data/skillIcons';
 import { skillColors } from '../data/skillColors';
-import { onHeroReady } from '../scenes/heroReady';
+import { onPinsReady } from '../scenes/contactReady';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -77,17 +77,17 @@ export function SkillTag({ skill }: { skill: string }) {
     if (iconWrapRef.current) gsap.to(iconWrapRef.current, { color: baseColorRef.current, duration: 0.25 });
   }
 
-  // Gated on `onHeroReady` — a trigger created before Hero's pin spacer
-  // exists measures itself against a still-short page and fires far too
-  // early once real scrolling reaches that stale offset (found and fixed
-  // across ScrollReveal/StaggerReveal/CountUp too while building this;
-  // see their own comments for the Playwright repro).
+  // Gated on `onPinsReady` — a trigger created before every pin on the
+  // page exists measures itself against a still-short page and fires far
+  // too early once real scrolling reaches that stale offset (found and
+  // fixed across ScrollReveal/StaggerReveal/CountUp too, and once more
+  // for Footer specifically — see contactReady.ts).
   useEffect(() => {
     if (!color || !liRef.current) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     let st: ScrollTrigger | null = null;
-    const unsubscribe = onHeroReady(() => {
+    const unsubscribe = onPinsReady(() => {
       st = ScrollTrigger.create({
         trigger: liRef.current,
         start: 'top 90%',

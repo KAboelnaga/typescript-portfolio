@@ -273,54 +273,79 @@ export function HeroTimeline({
     );
     tl.set(aboutMeRef.current, { visibility: 'hidden' }, aboutMeOut.start + aboutMeOut.duration);
 
-    // Through the character's own eyes — Kareem: "first rotate and go
-    // through the character with the camera as if I'm the character's own
-    // eyes, then zoom into the monitor and go rapidly inside." Camera
-    // travels from wherever it's settled to right in front of his actual
-    // eyes — the real "head" node's world-space bounding-box center,
-    // nudged forward along his own line of sight toward the monitor (same
-    // real-geometry approach as monitor_screen's target and Contact's
-    // box-based framing, not a hand-guessed number). The sweep from the
-    // settled framing to that close-up position naturally passes through
-    // his silhouette on the way; the head mesh is backface-culled, so
-    // ending up this close reveals what's ahead of him rather than the
-    // inside of his skull.
+    // Through the character's own eyes, then deeper into the monitor —
+    // Kareem: "first rotate and go through the character with the camera
+    // as if I'm the character's own eyes, then zoom into the monitor and
+    // go rapidly inside." Asked again later for this to be smoother, with
+    // no camera-direction change partway through, and to actually feel
+    // like it goes deeper into the monitor.
+    //
+    // Real bug found and fixed, verified by sampling `camera.position` on
+    // every frame through a real (non-jumped) scroll, not by eye: the old
+    // code sent the camera from the settled framing to `eyePosition` (the
+    // head's real world position, nudged 0.06 units toward the monitor —
+    // computed from live geometry), then in a *separate* tween from
+    // `eyePosition` to `MONITOR_ZOOM_CAMERA.position`, a hand-placed
+    // constant from timeline.ts with no geometric relationship to that
+    // ray. The sampled path showed camera.x traveling 1.55 -> 0.003 ->
+    // 0.54 — down, then back up — a real, measurable direction reversal
+    // exactly where the two tweens met, not a feel issue. Fixed by
+    // computing the *second* leg's endpoint further along the exact same
+    // head-toward-monitor ray as the first leg (a fraction of the real
+    // head-to-screen distance) instead of an unrelated hand-placed point
+    // — both legs now travel the same straight line, just further along
+    // it, so there's nothing left to reverse. This also directly serves
+    // "go deeper into the monitor": the old endpoint happened to sit at
+    // roughly the *same* distance from the screen as the head itself (it
+    // only looked closer via a very tight fov), where the new one is
+    // genuinely most of the way there in real position, not just optically.
+    const EYE_NUDGE = 0.06;
+    const DEEP_FRACTION = 0.85; // how far along the head->screen distance to end up; short of 1.0 so nothing clips through the mesh
     const headNode = sceneRoot?.getObjectByName('head');
     let eyePosition = vec(THROUGH_EYES_CAMERA.position);
+    let deepMonitorPosition = vec(MONITOR_ZOOM_CAMERA.position);
     if (headNode) {
       const headBox = new THREE.Box3().setFromObject(headNode);
       const headCenter = headBox.getCenter(new THREE.Vector3());
-      const forward = new THREE.Vector3(monitorTarget.x, monitorTarget.y, monitorTarget.z)
-        .sub(headCenter)
-        .normalize();
-      const eyePos = headCenter.add(forward.multiplyScalar(0.06));
+      const monitorVec = new THREE.Vector3(monitorTarget.x, monitorTarget.y, monitorTarget.z);
+      const forward = monitorVec.clone().sub(headCenter).normalize();
+      const totalDistance = headCenter.distanceTo(monitorVec);
+      const eyePos = headCenter.clone().add(forward.clone().multiplyScalar(EYE_NUDGE));
       eyePosition = { x: eyePos.x, y: eyePos.y, z: eyePos.z };
-      if (isDev) console.log('[head] eye position:', eyePosition);
+      const deepPos = headCenter.clone().add(forward.clone().multiplyScalar(totalDistance * DEEP_FRACTION));
+      deepMonitorPosition = { x: deepPos.x, y: deepPos.y, z: deepPos.z };
+      if (isDev) console.log('[head] eye position:', eyePosition, 'deep position:', deepMonitorPosition);
     }
 
+    // "power2.out" (decelerating) rather than "power2.in" for this first
+    // leg — arrives at the eyes smoothly instead of still accelerating at
+    // full speed right as the second leg needs to take over. The old
+    // double-"power2.in" meant velocity reset to near-zero at the start of
+    // every leg regardless of how fast the previous one was still going —
+    // a stutter on top of the direction reversal above. Decelerating into
+    // the eyes, then accelerating away from them into the monitor, reads
+    // as one continuous motion with a natural beat in the middle instead
+    // of two disconnected hops.
     const throughEyes = beat('throughEyes');
     tl.to(
       camera.position,
-      { ...eyePosition, duration: throughEyes.duration, ease: 'power2.in' },
+      { ...eyePosition, duration: throughEyes.duration, ease: 'power2.out' },
       throughEyes.start,
     );
-    tl.to(lookAt, { ...monitorTarget, duration: throughEyes.duration, ease: 'power2.in' }, throughEyes.start);
+    tl.to(lookAt, { ...monitorTarget, duration: throughEyes.duration, ease: 'power2.out' }, throughEyes.start);
     tl.to(
       camera,
-      { fov: THROUGH_EYES_CAMERA.fov, duration: throughEyes.duration, ease: 'power2.in' },
+      { fov: THROUGH_EYES_CAMERA.fov, duration: throughEyes.duration, ease: 'power2.out' },
       throughEyes.start,
     );
 
-    // Monitor approach — now starting from the eye position above rather
-    // than the settled framing, so there's less ground to cover; eased in
-    // (accelerating) rather than linear for "go rapidly inside the
-    // monitor." Pushed close enough to fill the frame entirely; camera
-    // stops moving in 3D once this ends, no literal clipping through the
-    // mesh from here on.
+    // Monitor approach — continues from the eye position straight along
+    // the same ray (see deepMonitorPosition above), accelerating hard
+    // ("go rapidly inside the monitor").
     const approach = beat('monitorApproach');
     tl.to(
       camera.position,
-      { ...vec(MONITOR_ZOOM_CAMERA.position), duration: approach.duration, ease: 'power2.in' },
+      { ...deepMonitorPosition, duration: approach.duration, ease: 'power2.in' },
       approach.start,
     );
     tl.to(lookAt, { ...monitorTarget, duration: approach.duration, ease: 'power2.in' }, approach.start);
@@ -414,38 +439,46 @@ export function HeroTimeline({
     // scroll is ready to be made" — the ScrollTrigger above only exists
     // once we reach this line, so that's "ready." A real-time tween, not
     // part of `tl` — it has nothing to do with scroll progress, which is
-    // still 0 here regardless. Fades back out the instant real scrolling
-    // starts (a one-shot native `scroll` listener, not scroll-scrubbed —
-    // simplest way to avoid fighting introFadeIn's own scrubbed opacity
-    // tween on the separate black overlay).
+    // still 0 here regardless.
     //
-    // Real bug, found and fixed: "the scroll to begin message stays until
-    // Projects, sometimes, when I go back and forth." This code only runs
-    // once the character model finishes loading — on a slow connection (or
-    // just an eager visitor), the user can easily have already scrolled
-    // well past the top by the time that happens. The old code showed the
-    // message unconditionally regardless of current scroll position, then
-    // waited for a *subsequent* scroll event to hide it again — if the
-    // user had already scrolled and then stopped (reading Work/Projects),
-    // no further scroll event ever came, leaving it stuck visible deep in
-    // the page. Reproduced via a throttled-network Playwright run: scroll
-    // early, and by the time this code ran the user was already at
-    // scrollY 3000 with the message stuck at opacity 1 indefinitely.
-    // Gating the initial show on "still actually at the top" fixes it at
-    // the root — there's no reason to welcome someone to "begin scrolling"
-    // once they already have.
-    let welcomeShown = false;
-    if (welcomeRef.current && window.scrollY < 40) {
+    // "I want scroll to begin to appear whenever I go to the first of the
+    // page" — this used to be a one-shot: show once if still at the top
+    // when this code runs, hide forever on the first scroll event after
+    // that (which also fixed a real bug — see DONE.md 2026-08-10 (3) —
+    // where showing it unconditionally regardless of current scroll
+    // position could leave it stuck visible deep in the page). Now it's a
+    // standing sync instead of a one-shot: every scroll event re-checks
+    // "am I at the top right now" and shows/hides to match, so it
+    // reappears every time the user scrolls (or navigates) back to the
+    // very top, not just once on first load — while keeping the same
+    // "never show it somewhere it doesn't belong" guarantee, since the
+    // check is against the *current* position on every single event, not
+    // a remembered one-time snapshot.
+    const WELCOME_TOP_THRESHOLD = 40;
+    let welcomeAtTop = window.scrollY < WELCOME_TOP_THRESHOLD;
+    let welcomeEverShown = false;
+    if (welcomeRef.current && welcomeAtTop) {
       gsap.to(welcomeRef.current, { opacity: 1, duration: 0.8, delay: 0.4, ease: 'power2.out' });
-      welcomeShown = true;
+      welcomeEverShown = true;
     }
-    function onFirstScroll() {
-      if (welcomeRef.current) {
-        gsap.to(welcomeRef.current, { opacity: 0, duration: 0.4, ease: 'power1.out', overwrite: 'auto' });
-      }
-      window.removeEventListener('scroll', onFirstScroll);
+    function onWelcomeScroll() {
+      const atTop = window.scrollY < WELCOME_TOP_THRESHOLD;
+      if (atTop === welcomeAtTop) return;
+      welcomeAtTop = atTop;
+      if (!welcomeRef.current) return;
+      gsap.to(welcomeRef.current, {
+        opacity: atTop ? 1 : 0,
+        duration: atTop ? 0.6 : 0.4,
+        // Only the very first appearance gets the settling delay (right
+        // after the model finishes loading); every later return to the
+        // top fades in right away.
+        delay: atTop && !welcomeEverShown ? 0.4 : 0,
+        ease: atTop ? 'power2.out' : 'power1.out',
+        overwrite: 'auto',
+      });
+      if (atTop) welcomeEverShown = true;
     }
-    if (welcomeShown) window.addEventListener('scroll', onFirstScroll, { passive: true });
+    window.addEventListener('scroll', onWelcomeScroll, { passive: true });
 
     if (isDev) {
       Object.assign(window, {
@@ -458,7 +491,7 @@ export function HeroTimeline({
 
     return () => {
       createdRef.current = false;
-      window.removeEventListener('scroll', onFirstScroll);
+      window.removeEventListener('scroll', onWelcomeScroll);
       st.kill();
       tl.kill();
     };

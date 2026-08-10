@@ -108,7 +108,7 @@ export const SETTLE_CAMERA: CameraFraming = {
 
 // How far the character's upper body (see Character.tsx's UPPER_BODY_NODE_NAMES)
 // turns toward camera during introTurn, in radians.
-export const CHARACTER_TURN_YAW = 0;
+export const CHARACTER_TURN_YAW = -Math.PI / 2;
 
 // throughEyes ends right at the character's own eye position, looking
 // toward the monitor — the real position/target are computed at runtime

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { onHeroReady } from '../scenes/heroReady';
+import { onPinsReady } from '../scenes/contactReady';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -60,12 +60,13 @@ export function CountUp({
     };
 
     let st: ScrollTrigger | null = null;
-    // Gated on `onHeroReady` — created before Hero's pin spacer exists,
-    // this trigger would measure itself against a still-short page and
-    // count up while still thousands of pixels below the viewport.
-    // Reproduced via Playwright: without this gate, the Work-section
-    // stats started counting ~6000px before they were ever visible.
-    const unsubscribe = onHeroReady(() => {
+    // Gated on `onPinsReady` (waits for every pin on the page, not just
+    // Hero's — see contactReady.ts) — created too early, this trigger
+    // would measure itself against a still-short page and count up while
+    // still thousands of pixels below the viewport. Reproduced via
+    // Playwright: without this gate, the Work-section stats started
+    // counting ~6000px before they were ever visible.
+    const unsubscribe = onPinsReady(() => {
       st = ScrollTrigger.create({
         trigger: el,
         start: 'top 88%',
