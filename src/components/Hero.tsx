@@ -59,7 +59,20 @@ export function Hero() {
         </svg>
       </div>
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col justify-center px-6 sm:px-10 lg:px-16">
+      {/* "Mobile needs a lot of modifications" — real bug found in the
+          investigation: on narrow viewports this text block spans nearly
+          the full width (max-w-3xl only matters once the viewport is
+          wider than it), so it sits directly on top of the character
+          instead of clear of him the way it is on desktop's much wider
+          frame. A per-breakpoint camera reframe would be the "real" fix
+          but is a much bigger, riskier change to a sequence that's
+          already been tuned a lot (see timeline.ts's history) — this is
+          the safe, purely-additive version: a text-shadow strong enough
+          to stay legible regardless of what's behind it, inherited down
+          to every line in this block rather than repeated per element. */}
+      <div
+        className="pointer-events-none absolute inset-0 flex flex-col justify-center px-6 sm:px-10 lg:px-16 [text-shadow:0_2px_20px_rgba(10,13,18,0.9),0_1px_4px_rgba(10,13,18,0.95)]"
+      >
         <div className="w-full max-w-3xl">
           <div ref={nameRef}>
             <h1

@@ -1,5 +1,4 @@
 import { forwardRef } from 'react';
-import { fontVariation } from '../theme/tokens';
 import { WordReveal } from './WordReveal';
 
 // "There are 2 about me, I only want the first one, and the text is
@@ -13,28 +12,27 @@ import { WordReveal } from './WordReveal';
 // (what he actually builds) with the standalone version's one genuinely
 // distinctive detail (the competitive-programming background) instead
 // of just picking one of the two originals verbatim.
+//
+// "Remove the title under about me (Backend & full-stack...)" — that
+// heading (restating the Hero title line one beat later) is gone; the
+// paragraph is the whole beat now. Also given its own font (Sora, not
+// the sitewide `font-body`) per "I don't like the about me font, look
+// for another modern font" — scoped to just this paragraph rather than
+// changing `font-body` everywhere else on the site.
 export const AboutMeContent = forwardRef<HTMLDivElement, { className?: string }>(
   function AboutMeContent({ className }, ref) {
     return (
       <div ref={ref} className={className}>
-        <div className="w-full max-w-4xl">
+        {/* Same mobile text-legibility fix as Hero.tsx's name/title block
+            — this text spans full-width on narrow viewports and sits
+            directly over the character there, unlike on desktop's wider
+            frame. */}
+        <div className="w-full max-w-4xl [text-shadow:0_2px_20px_rgba(10,13,18,0.9),0_1px_4px_rgba(10,13,18,0.95)]">
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-low sm:text-sm">
             About me
           </p>
 
-          <h2
-            className="mt-4 font-display text-3xl leading-tight text-text-hi sm:text-4xl lg:text-[3.25rem]"
-            style={{ fontVariationSettings: fontVariation.heading }}
-          >
-            Backend &amp; full-stack engineer — Python, Django, React
-          </h2>
-
-          {/* Sized down one notch from the original (text-xl/2xl) once the
-              combined, de-duplicated copy below got a second sentence
-              longer — the taller block was pushing "About me" above the
-              viewport top at standard heights (found via a Playwright
-              getBoundingClientRect check, not just eyeballing it). */}
-          <p className="mt-6 max-w-3xl font-body text-lg leading-snug sm:text-xl">
+          <p className="mt-6 max-w-3xl font-about text-lg leading-snug sm:text-xl">
             <WordReveal
               standalone={false}
               text="I build the systems people use every day — permissions, reporting, admin interfaces, Arabic-first. I came up through competitive programming, which is probably why a municipal database restructure didn't scare me: most problems get easier once you find the right way to represent them."

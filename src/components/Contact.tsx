@@ -1,15 +1,33 @@
 import { useRef, useState, type FormEvent } from 'react';
+import emailjs from '@emailjs/browser';
 import { fontVariation } from '../theme/tokens';
 import { ContactScene } from '../scenes/ContactScene';
 import { socialIconPaths } from '../data/socialIcons';
 
+// "I want to make the send an email working" — real send via EmailJS
+// (client-side, no backend needed) once Kareem creates an account and
+// fills these three in his own `.env` (see `.env.example` and the setup
+// steps in README.md/DONE.md — never hardcode real keys here). Until he
+// does, all three read as empty strings and the form falls back to
+// exactly its old `mailto:` behavior, unchanged — this is an upgrade
+// path, not a required step.
+const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID ?? '';
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? '';
+const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY ?? '';
+const EMAILJS_CONFIGURED = Boolean(EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY);
+
 const EMAIL = 'kaaboelnaga@gmail.com';
 const PHONE = '+20 101 993 2727';
 const PHONE_TEL = '+201019932727';
+// wa.me wants digits only, no leading "+".
+const WHATSAPP_URL = `https://wa.me/${PHONE_TEL.replace(/\D/g, '')}`;
 
 const links = [
   { label: 'GitHub', href: 'https://github.com/KAboelnaga' },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/in/kaboelnaga' },
+  // "Add a whatsapp link too with the same number" — same PHONE_TEL, not a
+  // separate number.
+  { label: 'WhatsApp', href: WHATSAPP_URL },
 ];
 
 // No backend on this site, so "send" opens the visitor's own email client
@@ -34,6 +52,7 @@ export function Contact() {
   const overlayRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   async function copyEmail() {
     try {
@@ -47,13 +66,39 @@ export function Contact() {
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = new FormData(form);
     const name = String(data.get('name') ?? '').trim();
     const email = String(data.get('email') ?? '').trim();
     const message = String(data.get('message') ?? '').trim();
-    window.location.href = buildMailtoUrl(name, email, message);
+
+    if (!EMAILJS_CONFIGURED) {
+      window.location.href = buildMailtoUrl(name, email, message);
+      return;
+    }
+
+    setStatus('sending');
+    try {
+      // Template variable names — match these in the EmailJS template
+      // editor ({{from_name}}, {{from_email}}, {{message}}).
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        { from_name: name || 'Anonymous', from_email: email, message },
+        { publicKey: EMAILJS_PUBLIC_KEY },
+      );
+      setStatus('sent');
+      form.reset();
+      setTimeout(() => setStatus('idle'), 4000);
+    } catch {
+      // Real send failed (bad keys, EmailJS outage, offline) — the
+      // visitor's message shouldn't just vanish, so fall back to the
+      // same mailto: this form always used before EmailJS existed.
+      setStatus('error');
+      window.location.href = buildMailtoUrl(name, email, message);
+    }
   }
 
   return (
@@ -81,7 +126,16 @@ export function Contact() {
         // desktop's much taller viewport. `sm:pt-20` restores the
         // original `py-20` top value at that breakpoint, leaving the
         // already-correct desktop centering alone.
-        className="relative z-10 flex h-full max-w-lg flex-col justify-center overflow-y-auto py-20 pt-28 sm:pt-20"
+        //
+        // `pr-24` is the same class of bug found again on a second mobile
+        // pass: this content spans the full viewport width at mobile
+        // sizes (max-w-lg only matters once the viewport is wider than
+        // that), so the links row reached all the way to the right edge
+        // and "WhatsApp" ended up rendering right under the fixed
+        // ThemeLightbulb widget (`right-4` + `h-20 w-20` — an ~96px-wide
+        // strip on the right, `right-6`+`5.25rem` at `sm:`). Reserving
+        // that space makes the links wrap clear of it instead.
+        className="relative z-10 flex h-full max-w-lg flex-col justify-center overflow-y-auto py-20 pr-24 pt-28 sm:pr-0 sm:pt-20"
       >
         <h2
           className="font-display text-2xl text-text-hi sm:text-3xl"
@@ -191,9 +245,13 @@ export function Contact() {
 
           <button
             type="submit"
-            className="self-start rounded border border-surf-3 bg-surf-1 px-4 py-1.5 font-mono text-xs text-text-hi transition-colors hover:border-signal hover:text-signal sm:text-sm"
+            disabled={status === 'sending'}
+            className="self-start rounded border border-surf-3 bg-surf-1 px-4 py-1.5 font-mono text-xs text-text-hi transition-colors hover:border-signal hover:text-signal disabled:opacity-60 sm:text-sm"
           >
-            Send — opens your email client
+            {status === 'sending' && 'Sending…'}
+            {status === 'sent' && 'Message sent'}
+            {status === 'error' && 'Failed — opening email client'}
+            {status === 'idle' && (EMAILJS_CONFIGURED ? 'Send message' : 'Send — opens your email client')}
           </button>
         </form>
       </div>

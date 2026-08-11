@@ -83,8 +83,23 @@ export function Background() {
             <StaggerReveal as="ul" className="mt-6 flex flex-col gap-6">
               {PLACEMENTS.map((item) => (
                 <li key={item.label}>
+                  {/* "Competitive programming is overflowing on the other
+                      section" — real bug, and a deeper one than it looked:
+                      `sm:text-5xl` doesn't actually exist in this project's
+                      custom `fontSize` scale (tailwind.config.ts only
+                      defines up to `4xl`), so it silently generated no
+                      rule at all, leaving the *base* `text-4xl` — 6.5rem
+                      (104px) in this custom scale, not Tailwind's default
+                      ~2.25rem — applied at every breakpoint. That's
+                      enormous for a whole word ("Contestant," the one
+                      non-numeric placement; "64th"/"4th" are short enough
+                      to have hidden the problem), and it overflowed the
+                      column outward into Languages next to it rather than
+                      wrapping. Sized down to sizes that actually exist in
+                      the scale and fit the real column width; `break-words`
+                      stays on as a backstop for any still-narrower case. */}
                   <p
-                    className="font-display text-4xl text-lamp sm:text-5xl"
+                    className="break-words font-display text-2xl text-lamp sm:text-3xl"
                     style={{ fontVariationSettings: fontVariation.heading }}
                   >
                     {item.place}

@@ -29,6 +29,7 @@ export default {
       display: [font.display],
       body: [font.body],
       mono: [font.mono],
+      about: [font.aboutMe],
     },
     // `base` is a color token too ("page background" — see `colors`
     // above). Tailwind auto-generates a `text-{key}` utility for BOTH

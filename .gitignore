@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# EmailJS keys (Contact.tsx) — see .env.example
+.env
+.env.*
+!.env.example
+
 # Raw model exports (source for public/models/character.glb, not shipped)
 /models-source
 

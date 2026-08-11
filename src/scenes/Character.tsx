@@ -168,6 +168,38 @@ export function Character({ onReady, onSceneReady, onHeadReady }: CharacterProps
       if (child !== rootPivot) rootPivot.attach(child);
     });
 
+    // "Text on the monitor [is] translated [off-center], center them" — the
+    // code-editor mockup on the screen (`ui_sidebar`/`ui_file_*`/
+    // `code_line_*`/`code_tok_*`/`code_cursor`, all siblings of
+    // `monitor_screen` under `monitor_head`) sits noticeably off the
+    // screen's own center — confirmed by comparing real geometry, not
+    // eyeballed: the screen mesh's own local bounding-box center against
+    // the mockup nodes' combined center, several centimeters apart on the
+    // x-axis. Recentered by shifting every mockup node by the same real
+    // delta, computed here at runtime rather than a hand-picked constant,
+    // so it stays correct if the model is ever re-exported.
+    const monitorHead = scene.getObjectByName('monitor_head');
+    const monitorScreen = monitorHead?.getObjectByName('monitor_screen') as THREE.Mesh | undefined;
+    if (monitorHead && monitorScreen) {
+      monitorScreen.geometry.computeBoundingBox();
+      const screenBox = monitorScreen.geometry.boundingBox;
+      const contentNodes = monitorHead.children.filter(
+        (n) => n.name.startsWith('ui_') || n.name.startsWith('code_'),
+      );
+      if (screenBox && contentNodes.length > 0) {
+        const contentBox = new THREE.Box3();
+        contentNodes.forEach((n) => contentBox.expandByPoint(n.position));
+        const screenCenter = screenBox.getCenter(new THREE.Vector3());
+        const contentCenter = contentBox.getCenter(new THREE.Vector3());
+        const deltaX = screenCenter.x - contentCenter.x;
+        const deltaY = screenCenter.y - contentCenter.y;
+        contentNodes.forEach((n) => {
+          n.position.x += deltaX;
+          n.position.y += deltaY;
+        });
+      }
+    }
+
     builtRef.current = true;
     onReady?.(pivot);
     onSceneReady?.(rootPivot);

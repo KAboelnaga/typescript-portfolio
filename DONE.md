@@ -4,6 +4,165 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-11 (14) — Contact form now actually sends (EmailJS, real keys installed and test-verified end to end); first mobile pass — two real "stuck" overlap bugs fixed (Hero/About Me text vs. the character, Contact's WhatsApp link vs. the lightbulb widget), rest of the site checked clean
+
+Kareem picked EmailJS (recommended) for real sending and "you investigate
+and fix what you find" (recommended) for the mobile pass, both via a
+direct question rather than guessing. Answered both in the same session.
+
+**Contact form: real send, not just `mailto:`.** Installed
+`@emailjs/browser`, wired `Contact.tsx`'s submit handler to call it when
+`VITE_EMAILJS_SERVICE_ID`/`_TEMPLATE_ID`/`_PUBLIC_KEY` are set (new
+`src/vite-env.d.ts` for the env typing, `.env.example` documenting the
+three keys, `.env`/`.env.*` gitignored except the example), falling back
+to the exact old `mailto:` behavior unchanged when they're not — this is
+an additive upgrade, not a required step, so nothing breaks if the keys
+are ever missing. Kareem supplied his real EmailJS service/template/public
+key directly in chat; written to a local, gitignored `.env`. Verified for
+real, not just code-reviewed: submitted the live form via Playwright with
+real form data and confirmed the actual EmailJS API call
+(`api.emailjs.com`) returned `200 OK`, and the button walked through its
+`Sending… → Message sent` states correctly. One real test email should be
+in Kareem's inbox from this — expected, not an accident.
+
+**Mobile pass — investigated with a real device-emulated Playwright sweep
+(iPhone 13 viewport), not guessed.** Checked every section for horizontal
+overflow programmatically (`scrollWidth` vs `clientWidth`) at ~20 scroll
+positions through the Hero pin plus every section in normal flow — zero
+page-level horizontal overflow anywhere, that part of the site holds up.
+Screenshotted throughout and found two *persistent* ("stuck," not
+transient-during-scroll) real bugs, both fixed:
+
+- **Hero's name/title and About Me text overlap the character
+  unreadably on narrow viewports, for the entire pinned sequence.** Root
+  cause: the text block's `max-w-3xl`/`max-w-4xl` constraints only matter
+  once the viewport is *wider* than that — on a 390px phone the text
+  spans the full width same as the character, instead of desktop's clear
+  left two-thirds. A full fix would reframe the camera per breakpoint,
+  which is a much bigger and riskier change to a sequence that's already
+  been tuned extensively (see `timeline.ts`'s history) — not attempted
+  without checking first. Applied the safe, additive fix instead: a
+  strong inherited `text-shadow` on both text blocks so they stay legible
+  regardless of what's behind them. Genuinely better, not a complete fix
+  — said so plainly rather than overclaiming; a real per-breakpoint
+  camera pass is still open if Kareem wants it (see TODO.md).
+- **Contact's "WhatsApp" link renders directly under the fixed
+  ThemeLightbulb widget on mobile, for the entire pinned Contact
+  sequence.** Same class of bug `pt-28` already fixed here for the
+  Navbar collision (2026-08-10 batch) — this is the same content block
+  reaching under a *different* fixed widget (the lightbulb, `right-4`
+  + `h-20 w-20`) this time. Fixed with `pr-24` on mobile (removed at
+  `sm:`) so the links row wraps clear of that column instead of
+  reaching under it.
+
+Distinguished real bugs from testing artifacts along the way: a few
+screenshots showed section headings transiently sliding under the fixed
+Navbar mid-scroll (e.g. Background's "B.Sc. Computer Engineering") —
+not fixed, and deliberately not chased, since that's an artifact of
+`scrollIntoViewIfNeeded()` hard-snapping content to the viewport edge in
+the test script, not something a real visitor scrolling by hand would
+experience as "stuck." The Hero/Contact cases above are categorically
+different: pinned sections hold the visitor at that exact scroll state
+for the whole beat, so an overlap there really is stuck, not transient.
+Skills, Background's grid, and the Navbar's own horizontal scroll (pill
+genuinely scrolls, `scrollWidth` 551px vs `clientWidth` 356px — just has
+no visual "more to scroll" affordance, noted but not fixed) all checked
+out clean.
+
+Verified: `npx tsc -b` and `npx oxlint src/` both clean. Every fix
+screenshotted on the real iPhone-13-emulated viewport after the change,
+not just before/after diffed by eye.
+
+## 2026-08-11 (13) — Monitor-screen mockup recentered (real off-center bug, not baked into a texture); project cards fully clickable; WhatsApp link; Background overflow root-caused (a font-size key that doesn't exist in this project's custom scale); About Me's restated heading removed and given its own font (Sora, self-hosted); full live-copy extraction for review
+
+Eight items from one large batch of direct asks, worked in the order that
+let later ones build on earlier investigation.
+
+**Monitor screen content recentered — real geometry bug, not a texture.**
+"Text on the monitor [is] translated [off-center], center them." First
+assumption (a baked texture needing a UV offset) was wrong — inspecting the
+live scene graph (`monitor_screen`'s material has no `map` at all) showed
+the "code" is ~30 individual mesh siblings (`ui_sidebar`, `code_line_0..14`,
+etc.) under `monitor_head`, each independently positioned. Computed both the
+screen mesh's own local bounding-box center and the mockup nodes' combined
+center and found them several centimeters apart on x (and slightly on y) —
+confirmed by zoomed screenshots at two different camera distances, gap
+clearly on one side. Fixed generally in `Character.tsx` (so both Hero's and
+Contact's independent model instances get it, same file, one fix): shift
+every `ui_*`/`code_*` node by the real, computed delta between those two
+centers, not a hand-picked constant.
+
+**Project cards fully clickable again, live demo first, else repo.**
+Reverses the 2026-08-10 batch's own explicit fix (whole-card link removed
+specifically because a real `<a>` can't contain two more `<a>`s) — Kareem
+asked for it back regardless. Kept both explicit "live preview"/"view repo"
+links (still real `<a>`s, still both always reachable) and added a plain
+`onClick` on the `<article>` that opens `previewUrl ?? repoUrl` in a new
+tab, guarded to no-op when the click actually landed on one of the inner
+links/buttons (`e.target.closest('a, button')`) so clicking "view repo" on
+a card that also has a live demo can't double-navigate. `data-cursor-hover`
+added so CustomCursor's outline treats the whole card as clickable too.
+Verified three ways via Playwright: empty-space click on a repo-only card →
+repo; empty-space click on a card with both → live demo; explicit "view
+repo" click on that same card → repo, not the demo.
+
+**WhatsApp link added to Contact**, same `PHONE_TEL` number, via a new
+`data/socialIcons.ts` entry (vendored simple-icons path, same pattern as
+GitHub/LinkedIn) and a third entry in the existing icon+label links row.
+
+**Background overflow root-caused — not a spacing/margin issue, a broken
+utility class.** "Competitive programming... overflowing on the other
+section." `break-words` alone (first attempt) technically stopped the
+horizontal spillover but produced ugly, arbitrary mid-word wrapping
+("Contes-tant") and a badly uneven list rhythm — pointed at a deeper cause.
+Found it: `sm:text-5xl` doesn't exist in this project's custom `fontSize`
+scale (`tailwind.config.ts` only defines up to `4xl`, and does so by
+*replacing* Tailwind's default scale, not extending it) — so that class
+silently generated no CSS rule at all, and the *base* `text-4xl` (6.5rem /
+104px in this custom scale, not Tailwind's normal ~2.25rem) applied at
+every breakpoint uncontested. 104px is enormous for a whole word
+("Contestant," the one non-numeric placement — the short numeric ones
+never exposed this). Resized to `text-2xl sm:text-3xl`, both real keys in
+the actual scale; `break-words` kept on as a backstop. The same dead
+`text-5xl`/`text-6xl` pattern exists in `ProjectsGlimpseOverlay.tsx` too,
+noted but left alone — that one just caps out early rather than actively
+overflowing, lower priority.
+
+**About Me: restated heading removed, given its own font.** "Remove the
+title under about me (Backend & full-stack...)" — gone, the paragraph is
+the whole beat now. "I don't like the about me font, look for another
+modern font" — self-hosted Sora (downloaded once from Google Fonts'
+variable-font endpoint, same self-hosted pattern as the other three
+typefaces, no runtime CDN call) and scoped it to just this paragraph via a
+new `font-about` Tailwind utility / `font.aboutMe` token, rather than
+changing the sitewide `font-body` everyone else still uses.
+
+**Full live-copy extraction, `CONTENT-LIVE.md`.** "Extract me a copy for
+the website content, I need to see and improve the context." Kareem's own
+CONTENT.md (referenced constantly throughout this codebase's comments and
+DONE.md history) turns out to have never actually been in this repo — it's
+an external doc of his. Read every real component for its actual live
+copy and organized it by section, in the site's real top-to-bottom order,
+so there's something concrete to mark up regardless of what the original
+doc still says.
+
+Deferred rather than guessed at: a real working "send message" (Kareem:
+"I don't know the steps, I forgot") needs a decision on which
+service/approach and, for most of them, an account only he can create —
+asked directly rather than picking one silently. Two explicitly-framed
+"what do you think" questions (a 3D background room; bringing back a
+projects timeline) got a short recommendation each, not an implementation,
+per how they were asked. "Mobile needs a lot of modifications" had no
+specifics attached — asked what, rather than guessing at scope this large.
+
+Verified: `npx tsc -b` and `npx oxlint src/` both clean (same one
+pre-existing unrelated warning). Playwright pass against the real dev
+server for every visual/behavioral change — monitor recentering at two
+camera distances, Background's fixed column screenshotted, About Me's new
+font and removed heading screenshotted, and the project-card click
+priority checked three ways against real navigation events, not just
+inferred from the code.
+
 ## 2026-08-10 (12) — Contact's end-turn nudged 180° → 210°
 
 One-line follow-up on (11): "maybe rotate 30 more degrees." Same

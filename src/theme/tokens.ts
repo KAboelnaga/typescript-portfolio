@@ -66,6 +66,8 @@ export const font = {
   display: '"Bricolage Grotesque", sans-serif',
   body: '"Instrument Sans", sans-serif',
   mono: '"JetBrains Mono", monospace',
+  // About Me's body copy only, not used elsewhere — see AboutMeContent.tsx.
+  aboutMe: '"Sora", sans-serif',
 } as const;
 
 // Bricolage Grotesque variable axes: wght 200–800, wdth 75–100, opsz 12–96.

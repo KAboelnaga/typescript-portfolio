@@ -28,6 +28,17 @@
   font-display: swap;
 }
 
+/* About Me's body copy only ("I don't like the about me font, look for
+   another modern font") — not a sitewide token, self-hosted the same way
+   as the other three (SPEC.md: no Google Fonts CDN call at runtime). */
+@font-face {
+  font-family: 'Sora';
+  src: url('/fonts/Sora-Variable.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Pre-JS bootstrap only — theme/ThemeContext.tsx overwrites these inline
    via style.setProperty() the instant it mounts (before paint), reading
    from theme/tokens.ts. Keep this block matching tokens.ts's `color`

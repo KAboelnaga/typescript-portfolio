@@ -5,6 +5,30 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Right now: unfinished from the last session
 
+- **2026-08-11 (14), done — see DONE.md for the full writeup.** Contact
+  form now actually sends via EmailJS (real keys installed, verified
+  end-to-end with a real test send) instead of only opening the
+  visitor's email client — still falls back to that if EmailJS isn't
+  configured. First real mobile pass (iPhone 13 viewport, Playwright):
+  zero horizontal overflow anywhere; two real "stuck" overlap bugs fixed
+  (Hero/About Me text vs. the character — text-shadow, a partial fix, see
+  "Waiting on Kareem" below for the fuller one; Contact's WhatsApp link
+  vs. the fixed lightbulb widget — `pr-24`). Rest of the site (Skills,
+  Background, Navbar's horizontal scroll) checked out clean.
+- **2026-08-11 (13), done — see DONE.md for the full writeup.** Monitor
+  screen mockup recentered (real off-center geometry, not a texture —
+  ~30 individual mesh nodes shifted by a computed delta in
+  `Character.tsx`). Project cards fully clickable again (live demo
+  priority, else repo), on top of the two existing explicit links.
+  WhatsApp link added to Contact. Background's overflow root-caused to a
+  dead `sm:text-5xl` class (doesn't exist in this project's custom type
+  scale) rather than a spacing issue — resized to real scale values.
+  About Me's restated heading removed; its paragraph now uses a
+  self-hosted Sora instead of the sitewide body font. Full live-copy
+  extraction written to `CONTENT-LIVE.md` for review. **Still open,
+  needs Kareem's input** (see "Waiting on Kareem" below): a real
+  working "send message," 3D background room, projects timeline, and
+  mobile-specific fixes.
 - **2026-08-10 (12), done — see DONE.md for the full writeup.** Contact's
   end-turn nudged 180° → 210°, same direction as (11).
 - **2026-08-10 (11), done — see DONE.md for the full writeup.** Cursor
@@ -241,6 +265,24 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Waiting on Kareem
 
+- **3D background room** (Kareem: "what do you think, can we do this
+  easily?") — asked directly, see chat; short version: doable, but real
+  scope (new geometry/lighting, not free), wants his go-ahead before
+  starting.
+- **Projects timeline layout** (Kareem: "can we bring back the timeline,
+  I may add other projects, what do you think?") — asked directly, see
+  chat; short version: makes more sense once he knows how many more
+  projects are actually coming.
+- **Hero/About Me mobile text vs. character — a fuller fix than 2026-08-11
+  (14)'s text-shadow.** That was the safe, additive fix; the real one is
+  reframing the camera specifically for narrow viewports (or moving/
+  shrinking the text block) so it doesn't sit on top of him at all. Bigger
+  change to an already-extensively-tuned sequence (`timeline.ts`) — worth
+  doing, not attempted without checking first.
+- **Navbar's horizontal scroll has no "more items" affordance** on mobile
+  — it does scroll (`scrollWidth` 551px vs `clientWidth` 356px, CONTACT/CV
+  are reachable), just nothing hints at it. Minor, noticed during the
+  2026-08-11 (14) mobile pass, not fixed.
 - **Copy sign-off on CONTENT.md's content as actually implemented.**
   Applied verbatim where CONTENT.md was explicit; a few judgment calls
   were made filling gaps it didn't cover directly (Work section's exact
