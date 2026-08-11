@@ -1,21 +1,29 @@
 // Official (or closest legible) brand colors, keyed to the same names as
 // skillIcons.ts — "colorize it to its known logo color" on hover (see
 // SkillTag.tsx). Sourced from each project's own brand guidelines, same
-// values simple-icons ships. Four exceptions are intentionally lifted off
-// the literal hex: Django (092E20), Flask (000000) and SQLite (003B57) are
-// all near-black — invisible against this site's near-black dark theme
+// values simple-icons ships. Several exceptions are intentionally lifted
+// off the literal hex: Django (092E20), Flask (000000) and SQLite (003B57)
+// are all near-black — invisible against this site's near-black dark theme
 // background (`void`, #0A0D12) and just as invisible against the near-white
 // light theme's #F5F3EF. Each is swapped for a lighter tint from the same
 // brand (Django and SQLite both pair their dark mark with a lighter accent
 // in their own docs/media kits already); Flask has no real secondary hue,
-// so it gets a neutral mid-grey instead of true black. PostgreSQL's literal
-// royal blue (#4169E1) isn't invisible but measured under WCAG AA against
-// the dark theme (3.45:1 vs the `surf1`-toned marquee background, needs
-// 4.5:1) — lightened just enough to clear it (4.55:1). Anything absent here
-// (Django Admin, REST APIs, Unit testing) has no real logo, so SkillTag
-// skips the colorize effect entirely for it.
+// so it gets a neutral mid-grey instead of true black.
+//
+// The rest of this list was checked for *contrast*, not just visibility —
+// a color can be perfectly visible and still fail WCAG AA's 4.5:1 for
+// normal text. PostgreSQL's literal royal blue (#4169E1) measured 3.45:1
+// against the `surf1`-toned marquee background; a systematic pass (every
+// entry, checked against `surf1` — the least-dark, hardest-to-clear of the
+// three real dark-mode backgrounds these colors sit on) turned up eight
+// more failing the same way: Python, Redux, Vite, Bootstrap, MySQL,
+// Apache, TypeScript, HTML5. All nine lightened toward the dark theme's
+// own `textHi` just enough to clear 4.5:1 (4.5–4.7:1 each, not further —
+// still clearly the original brand hue). Anything absent here (Django
+// Admin, REST APIs, Unit testing) has no real logo, so SkillTag skips the
+// colorize effect entirely for it.
 export const skillColors: Record<string, string> = {
-  Python: '#3776AB',
+  Python: '#568AB7',
   Django: '#44B78B',
   PostgreSQL: '#5E80E6',
   React: '#61DAFB',
@@ -24,18 +32,18 @@ export const skillColors: Record<string, string> = {
   Linux: '#FCC624',
   FastAPI: '#009688',
   Flask: '#8C8C8C',
-  Redux: '#764ABC',
-  Vite: '#646CFF',
+  Redux: '#9576C9',
+  Vite: '#6E76FD',
   Tailwind: '#06B6D4',
-  Bootstrap: '#7952B3',
-  MySQL: '#4479A1',
+  Bootstrap: '#9579C2',
+  MySQL: '#5E8BAD',
   SQLite: '#3D8DC9',
   Docker: '#2496ED',
-  Apache: '#D22128',
+  Apache: '#D86066',
   Bash: '#4EAA25',
   Java: '#EA7D25',
   'Spring Boot': '#6DB33F',
-  TypeScript: '#3178C6',
+  TypeScript: '#4A88CB',
   // Added 2026-08-11 for the Comfortable-tier additions. Three.js's real
   // brand color is pure black (#000000) — same invisible-on-this-site's-
   // near-black-dark-theme problem as Django/Flask/SQLite above, and
@@ -48,8 +56,8 @@ export const skillColors: Record<string, string> = {
   'Three.js': '#B0B0B0',
   GSAP: '#88CE02',
   'React Hook Form': '#EC5990',
-  HTML5: '#E34F26',
-  CSS: '#663399',
+  HTML5: '#E35832',
+  CSS: '#987BBA',
 };
 
 function relLuminance(hex: string): number {

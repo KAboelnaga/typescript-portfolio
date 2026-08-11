@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Hero } from './components/Hero';
 import { Work } from './components/Work';
 import { Projects } from './components/Projects';
@@ -10,8 +11,17 @@ import { ScrollControls } from './components/ScrollControls';
 import { CustomCursor } from './components/CustomCursor';
 import { Navbar } from './components/Navbar';
 import { SkipIntro } from './components/SkipIntro';
-import { ThemeLightbulb } from './components/ThemeLightbulb';
 import { ThemeProvider } from './theme/ThemeContext';
+
+// Lazy — this widget has its own separate <Canvas> (a mini 3D lightbulb
+// model, see ThemeLightbulb.tsx's own three/@react-three imports), and
+// was the one thing still pulling three.js into the main bundle even
+// after Hero/Contact's scenes went lazy (see those files) — it's
+// rendered eagerly here at the App level, outside any Suspense boundary
+// of its own. Splitting it out too actually got three.js out of the
+// initial chunk (measured: eager, the split barely moved the main
+// chunk's size at all — this was why).
+const ThemeLightbulb = lazy(() => import('./components/ThemeLightbulb').then((m) => ({ default: m.ThemeLightbulb })));
 
 // Page order follows CONTENT.md's own top-to-bottom section order, minus
 // the standalone About section — "there are 2 about me, I only want the
@@ -35,7 +45,9 @@ function App() {
       <Footer />
       <ScrollControls />
       <CustomCursor />
-      <ThemeLightbulb />
+      <Suspense fallback={null}>
+        <ThemeLightbulb />
+      </Suspense>
     </ThemeProvider>
   );
 }

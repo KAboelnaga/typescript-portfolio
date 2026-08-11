@@ -1,9 +1,25 @@
-import { useRef } from 'react';
+import { lazy, Suspense, useRef } from 'react';
 import { fontVariation } from '../theme/tokens';
-import { Scene } from '../scenes/Scene';
 import { AboutMeContent } from './AboutMeContent';
 import { CodeWordsOverlay } from './CodeWordsOverlay';
 import { useTheme } from '../theme/ThemeContext';
+
+// Lazy, not a static import — three/@react-three/fiber/@react-three/drei
+// (the whole scenes/ tree pulls them in) were the bulk of the single
+// ~1.3MB JS bundle a build warning kept flagging. Real-world network
+// transfer was never the actual problem (measured against the live
+// deploy: 411KB gzipped, 656ms load) — mobile *execution* was: Lighthouse
+// mobile score 50, Time to Interactive 15.5s, `bootup-time`/
+// `mainthread-work-breakdown` both scoring 0, because all of that JS had
+// to parse and run on a throttled mobile CPU before anything (including
+// this file's own plain DOM text below) could respond to input. Splitting
+// it into its own chunk lets the name/title/nav become interactive
+// immediately; the 3D canvas mounts a moment later once its chunk
+// fetches, same as it already waits for the character model itself to
+// load (`fallback={null}` — safe since Scene is a pure background layer
+// behind this component's own DOM text, not something with layout the
+// rest of the page depends on).
+const Scene = lazy(() => import('../scenes/Scene').then((m) => ({ default: m.Scene })));
 
 export function Hero() {
   // Read for the name/title text-shadow below — see that comment for why
@@ -39,14 +55,16 @@ export function Hero() {
 
   return (
     <header ref={pinRef} className="relative h-[100svh] overflow-hidden">
-      <Scene
-        pinRef={pinRef}
-        nameRef={nameRef}
-        titleRef={titleRef}
-        aboutMeRef={aboutMeRef}
-        codeWordsRef={codeWordsRef}
-        welcomeRef={welcomeRef}
-      />
+      <Suspense fallback={null}>
+        <Scene
+          pinRef={pinRef}
+          nameRef={nameRef}
+          titleRef={titleRef}
+          aboutMeRef={aboutMeRef}
+          codeWordsRef={codeWordsRef}
+          welcomeRef={welcomeRef}
+        />
+      </Suspense>
 
       <div
         ref={welcomeRef}

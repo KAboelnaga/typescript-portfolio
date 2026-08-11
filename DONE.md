@@ -4,6 +4,71 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-11 (21) — Real Lighthouse numbers turned up what the (20) network audit missed: mobile performance was 50/100 (15.5s Time to Interactive) purely from JS bootup cost, not network transfer. Code-split all three `<Canvas>` mounts out of the main bundle — mobile perf 50 → 80-84, desktop 87 → 97. A second, more thorough brand-color contrast pass also caught 9 more dark-mode failures the first pass's animation-timing-dependent axe scan missed entirely
+
+"Rerate the project and see what you can do to improve it, go ahead."
+(20)'s live network audit (fast page load, small gzipped transfer) had
+concluded bundle size wasn't a real problem — true for network time, but
+the wrong metric for the actual bottleneck. Ran real Lighthouse against
+the live site this time: **Performance 50/100 on mobile** (desktop was a
+healthy 87) — Time to Interactive 15.5s, Total Blocking Time 1150ms,
+`bootup-time`/`mainthread-work-breakdown` both scoring 0. Mobile's
+throttled CPU has to parse and execute the *entire* ~1.3MB JS bundle
+before anything — including this component's own plain DOM text —
+responds to input, regardless of how fast that bundle downloaded.
+Accessibility/best-practices/SEO all held at 100, confirming (20)'s work.
+
+**Root cause: three separate `<Canvas>` mounts, all eagerly bundled.**
+Not just Hero's `Scene` and Contact's `ContactScene` — `ThemeLightbulb`
+(rendered unconditionally at the App level, not scroll-gated) turned out
+to have its *own* mini 3D lightbulb model with its own `three`/
+`@react-three/fiber`/`@react-three/drei` imports. Lazy-loading only the
+two scroll-gated scenes barely moved the main chunk's size at all, until
+`ThemeLightbulb` — the thing actually importing three.js eagerly at the
+top level — got the same treatment. All three now load via `React.lazy`
++ `Suspense fallback={null}` (safe: all three are pure visual layers
+behind/alongside DOM content the rest of the page doesn't depend on).
+Verified via `vite build`: the single 1,376KB main chunk split into a
+407KB (147KB gzip) entry chunk plus a separate ~953KB (254KB gzip)
+three.js/drei chunk that now loads in parallel instead of blocking.
+Re-measured with Lighthouse against a real production build (`vite
+preview`, not the dev server): **mobile Performance 50 → 80–84** (TTI
+15.5s → 7.2–7.4s, TBT 1150ms → 220–340ms), **desktop 87 → 97**. Confirmed
+nothing broke: zero console/page errors, all three canvases still mount
+and render correctly (character model, both Hero and Contact framings,
+theme toggle), verified via Playwright screenshots of a real production
+build, not just the dev server.
+
+**A second, more rigorous brand-color contrast pass.** Lighthouse's own
+accessibility audit caught one dark-mode failure axe's (20) scan had
+missed entirely — Apache's brand red at 3.41:1 against the marquee
+background. Investigating why axe missed it surfaced a real gap in how
+(20) verified things: `TechSkillsSlider`'s marquee is a continuous CSS
+animation over a *doubled* list, and axe/Lighthouse's `color-contrast`
+check only evaluates elements currently within their `overflow:hidden`
+container's visible bounds — which duplicate copy of any given skill is
+in-frame at scan time is essentially animation-timing luck. (20)'s "0
+violations" dark-mode result was real but incomplete, not wrong — it
+just got lucky about which items were scrolled into view at that instant.
+Fixed by checking the *data*, not a timing-dependent DOM snapshot:
+computed contrast for all 28 `skillColors.ts` entries against every real
+dark-mode background pragmatically, found 9 total failures (Apache,
+Python, Redux, Vite, Bootstrap, MySQL, TypeScript, HTML5, CSS — PostgreSQL
+was already fixed in (20)), lightened each just enough to clear 4.5:1
+(4.5–4.7:1, not further). Re-verified light mode's `dimForLight()` still
+clears 4.5:1 for all 28 with the new base values (it recomputes from
+whatever hex it's given, so this was automatic) and re-ran the axe scan
+six times back-to-back (three per theme) specifically to beat the
+animation-timing issue that caused the miss the first time — 0 violations
+every run.
+
+Verified throughout: `npx tsc -b`, `npx oxlint src/`, `npm run build` all
+clean; Lighthouse (mobile + desktop presets) against both the live site
+and a local production build; axe-core against a local production build,
+6 repeated runs; Playwright functional/visual checks of a real production
+build (not dev server) to confirm the lazy-loading change didn't break
+anything.
+
 ## 2026-08-11 (20) — Real accessibility/SEO audit against the live Vercel deploy, not guessed at: 0 axe-core violations in both themes (was 2 categories, ~20 elements), a real keyboard-focus bug fixed sitewide, the known CodeWordsOverlay opacity bug fixed, OG/canonical/structured-data/robots/sitemap added
 
 "Do what has to be done, I want this project to be a 10/10 rating" —

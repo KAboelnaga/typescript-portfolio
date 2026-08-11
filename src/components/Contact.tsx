@@ -1,8 +1,13 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useRef, useState, type FormEvent } from 'react';
 import emailjs from '@emailjs/browser';
 import { fontVariation } from '../theme/tokens';
-import { ContactScene } from '../scenes/ContactScene';
 import { socialIconPaths } from '../data/socialIcons';
+
+// Lazy — same reasoning as Hero.tsx's Scene: keeps three/@react-three/
+// fiber/@react-three/drei out of the initial bundle so they don't block
+// the rest of the page (including this section's own DOM text/form)
+// from becoming interactive.
+const ContactScene = lazy(() => import('../scenes/ContactScene').then((m) => ({ default: m.ContactScene })));
 
 // "I want to make the send an email working" — real send via EmailJS
 // (client-side, no backend needed) once Kareem creates an account and
@@ -116,7 +121,9 @@ export function Contact() {
       ref={pinRef}
       className="relative h-[100svh] overflow-hidden px-6 sm:px-10 lg:px-16"
     >
-      <ContactScene pinRef={pinRef} overlayRef={overlayRef} textRef={textRef} />
+      <Suspense fallback={null}>
+        <ContactScene pinRef={pinRef} overlayRef={overlayRef} textRef={textRef} />
+      </Suspense>
 
       {/*
         Starts visible in static markup — safe fallback if JS never runs,

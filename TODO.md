@@ -5,6 +5,22 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Right now: unfinished from the last session
 
+- **2026-08-11 (21), done — see DONE.md for the full writeup.** Real
+  Lighthouse numbers (not just a network audit) found mobile performance
+  was actually 50/100 — 15.5s Time to Interactive, purely from JS
+  bootup cost on a throttled mobile CPU. Root cause: three separate
+  `<Canvas>` mounts (Hero's Scene, Contact's ContactScene, and
+  `ThemeLightbulb`'s own mini 3D lightbulb model, the one that was
+  actually keeping three.js in the main bundle) all eagerly bundled.
+  Lazy-loaded all three — mobile Performance 50 → 80–84, desktop 87 → 97,
+  TTI 15.5s → ~7.3s. Also found (via Lighthouse's own a11y audit, which
+  caught something (20)'s axe scan missed) that (20)'s brand-color
+  contrast fix was incomplete: `TechSkillsSlider`'s marquee animation
+  means axe only checks whichever doubled-list item happens to be
+  scrolled into view at scan time, so (20)'s "0 violations" was real but
+  lucky, not thorough. Systematically checked all 28 `skillColors.ts`
+  entries against every real dark-mode background this time (not a DOM
+  snapshot) — found 9 more failures beyond PostgreSQL, fixed all of them.
 - **2026-08-11 (20), done — see DONE.md for the full writeup.** A real
   accessibility/SEO audit against the *live* Vercel deploy: axe-core
   found real WCAG AA contrast failures (the `textLow` token in both
@@ -370,21 +386,20 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Later (not started)
 
-- **Fallback and polish**: mobile still image (under 768px, or
+- **Mobile/low-power still-image fallback**: under 768px, or
   `hardwareConcurrency <= 4`, or no WebGL2 → don't mount either canvas
-  at all, render a static image instead), Lighthouse pass, full a11y
-  audit with real contrast numbers, lazy-load the model so DOM text
-  stays the LCP element. Bundle size (below) feeds into this.
+  at all, render a static image instead. The other three items that used
+  to sit in this bullet (Lighthouse pass, full a11y audit with real
+  contrast numbers, code-splitting so three.js doesn't block the main
+  bundle) are done — see 2026-08-11 (20)/(21) in DONE.md. Lazy-loading
+  the model *file* itself (not just the JS that loads it) so DOM text is
+  guaranteed the LCP element is still open — right now the JS chunk is
+  split but the `.glb` fetch still starts as soon as that chunk runs.
 - `PreScrollOrbit`'s drag interaction is desktop-mouse-oriented — touch
   devices get pointerdown/pointermove events too but this hasn't been
   checked for conflicts with native touch-scroll gestures on mobile.
 
 ## Noticed along the way, not yet addressed
-
-- Production bundle is ~1.3MB / ~374KB gzip (three.js, loaded on two
-  independent canvases' worth of code, though the library itself is
-  only shipped once). Vite warns on chunk size. Code-splitting /
-  lazy-mounting is a later-polish concern, not urgent yet.
 - `Django_Blog_Project` on Kareem's GitHub has a committed `.env` and
   `db.sqlite3` (possible leaked secrets) plus a stray `v3.zip` backup.
   Unrelated to this portfolio build — his to handle separately,
