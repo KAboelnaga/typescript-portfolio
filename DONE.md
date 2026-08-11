@@ -4,6 +4,132 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-11 (20) — Real accessibility/SEO audit against the live Vercel deploy, not guessed at: 0 axe-core violations in both themes (was 2 categories, ~20 elements), a real keyboard-focus bug fixed sitewide, the known CodeWordsOverlay opacity bug fixed, OG/canonical/structured-data/robots/sitemap added
+
+"Do what has to be done, I want this project to be a 10/10 rating" —
+against the real hosted URL (typescript-portfolio.vercel.app), not just
+`localhost`. Started with a live network audit rather than assuming: load
+event at 656ms, 2.38MB total transfer (dominated by the 1.4MB character
+model and a 411KB font, not the JS — the "1.37MB bundle" flagged as a
+concern in an earlier rating was the *uncompressed* dist size; the real
+gzipped-over-the-wire JS is 411KB), zero console errors, zero failed
+requests. Kareem's own "I don't feel it any slow on hosting" checks out —
+performance work was deprioritized in favor of things actually measured
+as broken.
+
+**Accessibility — ran axe-core against the live site, found real,
+specific violations, fixed all of them:**
+- **`textLow` (tokens.ts, both themes) failed WCAG AA contrast** —
+  measured (not estimated, closing the "Real contrast-ratio numbers" item
+  that's been sitting in "Waiting on Kareem" since Stage 1): dark mode's
+  #6B7685 was 4.22:1 against `void` and 3.63:1 against `surf1` (needs
+  4.5:1 for normal text); light mode's #7A756A was as low as 3.42:1.
+  This one token feeds dozens of components (nav buttons, CV link, hint
+  text, marquee labels, project card metadata, timestamps) — fixed once
+  at the source: dark → #7D8694 (4.55:1 vs `surf1`, the harder of its two
+  real backgrounds), light → #666259 (4.53:1). Every consumer inherits
+  the fix automatically.
+- **Brand colors (`skillColors.ts`) failed contrast in one or both
+  themes.** PostgreSQL's literal blue was 3.45:1 against the dark-theme
+  marquee background — lightened to #5E80E6 (4.55:1), same precedent this
+  file already set for Django/Flask/SQLite's near-black marks. Separately,
+  *light* mode had no dimming logic to begin with for `TechSkillsSlider`
+  (only `SkillTag` had one, added in (19), and even that used a single
+  fixed 28% blend that wasn't enough for the near-white colors — React's
+  cyan measured 1.35:1, JavaScript's yellow 1.13:1). Replaced the fixed
+  blend with `dimForLight()`, a real per-color contrast solver (mixes
+  toward light mode's ink color in 2% steps until 4.5:1 against `surf1`
+  — the actual measured background, not `void`, which is lighter and was
+  the wrong "worst case" on a first pass — is met), exported from
+  `skillColors.ts` and shared by both `SkillTag.tsx` and the marquee.
+- **A real, sitewide keyboard-focus bug**, found via an actual Tab pass
+  (axe doesn't check this): `Navbar.tsx`, `SkipIntro.tsx`,
+  `ThemeLightbulb.tsx`, and `ScrollControls.tsx` all had
+  `focus-visible:outline-none` with no visible replacement — tabbing to
+  any nav link, the Skip button, the theme toggle, or the scroll/back-to-
+  top buttons produced *zero* visible change, though the invisible
+  transparent outline made every other a11y check pass anyway. Two of the
+  four (Navbar, ScrollControls) had a same-color-family text shift as a
+  half-measure; SkipIntro and ThemeLightbulb had nothing at all — the
+  theme toggle itself was completely unreachable-looking by keyboard.
+  Removed the override on all four; the site-wide `:focus-visible` rule
+  (index.css, already correct — 2px solid signal, 3px offset) now applies
+  everywhere, confirmed by literally tabbing through all ~33 stops on the
+  page and checking every one's computed outline color.
+- **`ProjectCard.tsx`'s `role="link"` on `<article>`** — ARIA doesn't
+  allow that role on a sectioning element; axe's `aria-allowed-role`
+  caught it. Swapped the wrapper to a plain `<div>` (no semantic loss —
+  `<article>`'s benefit here was marginal, and `<div>` accepts any
+  explicit role). Ref/handler types updated to match.
+- **About Me had no real heading** — its "About me" eyebrow label was a
+  styled `<p>`, the only section on the page without one; a screen
+  reader's jump-by-heading navigation skipped straight from the name
+  (h1) to Work (h2). Now an `<h2>`, visually identical.
+- One axe "incomplete" (`heading-order`, "unable to determine previous
+  heading") on the very first and very last heading in the sequence,
+  both runs, both themes — manually verified the actual order (h1 → h2 →
+  h3 → h3 → h2 → h3×3 → h2 → h2 → h3×3 → h2, all 14 headings) is
+  correctly nested with no level skipped. Axe flags "incomplete" (needs
+  manual review) rather than "violation" for exactly this reason; reviewed,
+  not a real defect.
+- Verified via a full re-scan: **0 violations, both themes**, after fixes
+  (was: 1 minor + 1 serious in dark mode alone; light mode wasn't even
+  checked before this).
+
+**A real, known bug fixed:** `CodeWordsOverlay`'s flying words — two GSAP
+tweens both drove the same element's `opacity` with overlapping active
+windows (fade-in spanning the word's *whole* duration, fade-out starting
+at 60% through that same span), so the fade-out always won during the
+overlap and opacity never got past `power1.in`'s value at the 60% mark
+(~0.36) before being pulled to 0 — this was flagged, not fixed, back in
+(16)'s verification. Fixed by splitting `scale` (unchanged, still spans
+the full duration) from `opacity` (now two *sequential*, non-overlapping
+tweens — fade-in ends exactly when fade-out begins), so only one tween
+ever owns `opacity` at a time. Verified by scrubbing the live `codeWords`
+beat via `__heroScrollTrigger` and sampling every word's computed opacity
+across the whole beat: max is now 1 (was capped ~0.36).
+
+**SEO/meta polish**, checked against what the live deploy was actually
+missing: `og:image`/`twitter:image` were root-relative (`/og-image.png`)
+— made absolute, since not every scraper reliably resolves a relative OG
+image against the page URL. Added `og:url`, a `<link rel="canonical">`,
+a Person JSON-LD block (name/jobTitle/description/`sameAs` → the real
+GitHub/LinkedIn URLs already in `Contact.tsx`, not fabricated), and
+`robots.txt`/`sitemap.xml` (neither existed). Title/description/favicon
+were already in good shape — untouched.
+
+Verified throughout: `npx tsc -b`, `npx oxlint src/`, `npm run build` all
+clean; axe-core against `localhost` post-fix (0 violations, both themes,
+via the same scratchpad harness used for screenshots all session);
+Playwright screenshots of Work/Projects in both themes to confirm the
+`textLow`/brand-color changes still read cleanly, not just pass a
+contrast checker.
+
+## 2026-08-11 (19) — Skills tags reverted again, this time to permanently-colored with no animation at all; brand colors dimmed in light mode where they read too neon
+
+Kareem tried the hover-only version from (18) and reversed course:
+"bring back the colored skills without animations, make them already
+colored." `SkillTag.tsx` rewritten to drop GSAP and the per-letter spans
+entirely — it's a plain component now, no refs, no event handlers, no
+animation. Real brand color (`skillColors.ts`) or the site's own
+`signal` green (a live CSS var, correct per theme automatically) applied
+directly as the tag's text color, always, same as the icon via
+`currentColor` inheritance.
+
+Immediate follow-up: "the colored skills are too bright on light mode,
+dim them a bit." Brand hexes are a single fixed value (unlike `signal`,
+which already has its own darker light-mode entry in `tokens.ts`), so
+several — React's cyan, GSAP's neon green — read oversaturated against
+light mode's cream background. Added a small `dimForLight()` blend (28%
+toward light mode's own ink color, not pure black, to stay consistent
+with the rest of the light palette) applied only when
+`mode === 'light'`; dark mode keeps the original brand hex untouched.
+Confirmed via computed style in both themes (e.g. React: `rgb(97, 218,
+251)` dark → `rgb(77, 165, 187)` light) and screenshots of the full
+Skills section in both themes.
+
+Verified: `npx tsc -b`, `npx oxlint src/`, `npm run build` all clean.
+
 ## 2026-08-11 (18) — Skills tags reverted to hover-only colorize (no more permanent auto-colorize on scroll); About Me word-reveal's stale-theme-color bug root-caused and fixed properly (a live re-render on toggle, not a rebuild of the pinned Hero timeline)
 
 Two follow-ups from (17)'s work, both from Kareem re-testing dark/light

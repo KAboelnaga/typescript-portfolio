@@ -124,8 +124,16 @@ export function Navbar() {
     setActive(id);
   }, []);
 
+  // No `focus-visible:outline-none` — it was here, relying on the
+  // `focus-visible:text-text-hi` color shift alone as the focus
+  // indicator. Found via a real keyboard-Tab pass (not just axe, which
+  // doesn't check this): that shift is too subtle to register as "this
+  // is now focused," and active items don't even get that since they're
+  // already `text-signal`. Site-wide `:focus-visible` (index.css) already
+  // gives every other interactive element a real 2px outline — this just
+  // stops opting out of it.
   const itemClass = (isActive: boolean) =>
-    `shrink-0 rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-[color,background-color,transform] duration-300 hover:scale-105 active:scale-95 focus-visible:outline-none sm:text-xs ${
+    `shrink-0 rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-[color,background-color,transform] duration-300 hover:scale-105 active:scale-95 sm:text-xs ${
       isActive ? 'bg-surf-2 text-signal' : 'text-text-low hover:text-text-hi focus-visible:text-text-hi'
     }`;
 

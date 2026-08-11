@@ -17,7 +17,12 @@ export const color = {
   // Text — no pure white anywhere.
   textHi: '#E4E7EB',
   textMid: '#A3ACBA',
-  textLow: '#6B7685',
+  // Measured (not estimated, see SPEC.md section 3's own caveat) against
+  // this token's real backgrounds — was #6B7685: 4.22:1 on `void`, 3.63:1
+  // on `surf1`, both under WCAG AA's 4.5:1 for normal text. Lightened just
+  // enough to clear 4.5:1 against `surf1` (the lighter of the two, so the
+  // harder constraint) — 4.55:1 there, 5.29:1 on `void`.
+  textLow: '#7D8694',
 
   // Accents
   lamp: '#D99A45',
@@ -41,7 +46,10 @@ export const lightColor = {
 
   textHi: '#1B1B18',
   textMid: '#4A4740',
-  textLow: '#7A756A',
+  // Same fix as `color.textLow` above, mirrored for light mode — was
+  // #7A756A: 3.42:1 against `surf1`, under AA's 4.5:1. Darkened to clear
+  // 4.5:1 there (4.53:1), 5.48:1 against `void`.
+  textLow: '#666259',
 
   lamp: '#B97324',
   lampGlow: '#8A5F2A',

@@ -197,7 +197,14 @@ export function ThemeLightbulb() {
       aria-pressed={lit}
       // "Increase its size a bit" (2026-08-10) — h-16/w-16 -> h-20/w-20
       // (mobile), sm:4.5rem -> sm:5.25rem.
-      className={`fixed right-4 top-20 z-50 h-20 w-20 cursor-grab touch-none overflow-hidden rounded-full border border-surf-3 bg-void/70 backdrop-blur [transition:border-color_0.5s,box-shadow_0.25s] hover:border-signal focus-visible:outline-none active:cursor-grabbing sm:right-6 sm:top-5 sm:h-[5.25rem] sm:w-[5.25rem] ${
+      // Had `focus-visible:outline-none` — only `hover:border-signal`
+      // responded to interaction, which a keyboard user tabbing to this
+      // (a real theme toggle, not decoration) never triggers. Found via a
+      // real Tab pass. Site-wide `:focus-visible` (index.css) covers it
+      // now; `overflow-hidden` above doesn't clip it since outline paints
+      // outside this element's own border box, not inside its content
+      // area.
+      className={`fixed right-4 top-20 z-50 h-20 w-20 cursor-grab touch-none overflow-hidden rounded-full border border-surf-3 bg-void/70 backdrop-blur [transition:border-color_0.5s,box-shadow_0.25s] hover:border-signal active:cursor-grabbing sm:right-6 sm:top-5 sm:h-[5.25rem] sm:w-[5.25rem] ${
         lit
           ? 'shadow-[0_10px_28px_-6px_rgba(0,0,0,0.55),0_0_22px_-4px_rgba(217,154,69,0.55)]'
           : 'shadow-[0_10px_28px_-6px_rgba(0,0,0,0.65)]'

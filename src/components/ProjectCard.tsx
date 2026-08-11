@@ -6,14 +6,20 @@ import { ProjectPreviewPopup } from './ProjectPreviewPopup';
  * "Convert the top three projects to clickables so it redirects to the
  * project's live preview" + "add both of the other linked repos links" +
  * "a big image [or video] popup showing the preview... on the left of the
- * hovered item." The card itself is a plain `<article>` (not a link) —
- * making the whole card an `<a>` meant a project with both a live URL and
- * a repo could only show one of the two (a link can't nest inside another
- * link), which is exactly what Kareem asked to fix. Instead, "live
- * preview" and "view repo" render as two independent links whenever each
- * is set, so both are always reachable. The hover popup (image or video)
- * is separately gated on whether a preview asset exists at all, whether
- * or not either link is present.
+ * hovered item." The card itself is a plain `<div>` (not a link) — making
+ * the whole card an `<a>` meant a project with both a live URL and a repo
+ * could only show one of the two (a link can't nest inside another link),
+ * which is exactly what Kareem asked to fix. Instead, "live preview" and
+ * "view repo" render as two independent links whenever each is set, so
+ * both are always reachable. The hover popup (image or video) is
+ * separately gated on whether a preview asset exists at all, whether or
+ * not either link is present.
+ *
+ * `<div>`, not `<article>` — the whole-card click/keyboard handling below
+ * needs `role="link"` on it, and ARIA doesn't allow that role on
+ * `<article>` (a sectioning element with its own implicit semantics); axe
+ * flagged it as an `aria-allowed-role` violation. `<div>` has no implicit
+ * role of its own, so any explicit role is valid on it.
  *
  * "Make any card in projects clickable, priority to its live demo, if
  * there isn't [one] go to the github repo" — the whole card is clickable
@@ -33,7 +39,7 @@ import { ProjectPreviewPopup } from './ProjectPreviewPopup';
 export function ProjectCard({ project }: { project: Project }) {
   const [hovered, setHovered] = useState(false);
   const rectRef = useRef<DOMRect | null>(null);
-  const cardRef = useRef<HTMLElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const hasPreview = Boolean(project.previewImage || project.previewVideo);
   const primaryUrl = project.previewUrl || project.repoUrl;
@@ -44,13 +50,13 @@ export function ProjectCard({ project }: { project: Project }) {
     setHovered(true);
   }
 
-  function onCardClick(e: MouseEvent<HTMLElement>) {
+  function onCardClick(e: MouseEvent<HTMLDivElement>) {
     if (!primaryUrl) return;
     if ((e.target as HTMLElement).closest('a, button')) return;
     window.open(primaryUrl, '_blank', 'noopener,noreferrer');
   }
 
-  function onCardKeyDown(e: KeyboardEvent<HTMLElement>) {
+  function onCardKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (!primaryUrl) return;
     if (e.target !== e.currentTarget) return;
     if (e.key === 'Enter' || e.key === ' ') {
@@ -61,7 +67,7 @@ export function ProjectCard({ project }: { project: Project }) {
 
   return (
     <>
-      <article
+      <div
         ref={cardRef}
         onMouseEnter={onEnter}
         onMouseLeave={() => setHovered(false)}
@@ -124,7 +130,7 @@ export function ProjectCard({ project }: { project: Project }) {
             )}
           </div>
         )}
-      </article>
+      </div>
 
       {hasPreview && (
         <ProjectPreviewPopup

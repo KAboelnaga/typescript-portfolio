@@ -5,6 +5,28 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Right now: unfinished from the last session
 
+- **2026-08-11 (20), done — see DONE.md for the full writeup.** A real
+  accessibility/SEO audit against the *live* Vercel deploy: axe-core
+  found real WCAG AA contrast failures (the `textLow` token in both
+  themes, several brand colors in `skillColors.ts`) and an ARIA violation
+  (`role="link"` on `<article>` in `ProjectCard.tsx`), all fixed — 0
+  violations now, both themes (was un-checked in light mode entirely
+  before this). A real, sitewide keyboard-focus bug found via an actual
+  Tab pass (not axe): `focus-visible:outline-none` with no visible
+  replacement on Navbar/SkipIntro/ThemeLightbulb/ScrollControls made
+  keyboard focus completely invisible on the nav, Skip button, and the
+  theme toggle. Also fixed the known `CodeWordsOverlay` opacity bug
+  flagged-not-fixed in (16), and added OG/canonical/JSON-LD/robots.txt/
+  sitemap.xml. Live network audit found the earlier "1.37MB bundle"
+  performance concern overstated (that was the uncompressed dist size;
+  real gzipped JS over the wire is 411KB, page load 656ms) — deprioritized
+  in favor of what was actually measured as broken.
+- **2026-08-11 (19), done — see DONE.md for the full writeup.** Skills
+  tags reverted again — (18)'s hover-only colorize replaced with plain,
+  permanently-colored tags (no GSAP, no animation at all). Brand colors
+  that read too neon in light mode (React's cyan, GSAP's green, etc.)
+  are now dimmed ~28% toward light mode's ink color when `mode ===
+  'light'`; dark mode is untouched.
 - **2026-08-11 (18), done — see DONE.md for the full writeup.** Skills
   tags reverted to hover-only colorize (dropped (17)'s scroll-triggered
   permanent auto-colorize per Kareem's follow-up). About Me word-reveal's
@@ -310,15 +332,6 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Waiting on Kareem
 
-- **CodeWordsOverlay fade tween bug** — found during (16)'s verification,
-  not fixed since it wasn't what was asked: the fade-in and fade-out
-  tweens for each flying word overlap and fight over the same `opacity`
-  property, capping every word around 0.36 opacity instead of the `1`
-  its own tween targets. Predates this session (same bug with the old
-  placeholder snippets, just never noticed). Fix would be sequencing them
-  properly (fade-out starting only once fade-in actually completes) or
-  using one `.to()` with a `yoyo`/keyframes instead of two competing
-  tweens.
 - **3D background room** (Kareem: "what do you think, can we do this
   easily?") — asked directly, see chat; short version: doable, but real
   scope (new geometry/lighting, not free), wants his go-ahead before
@@ -346,8 +359,6 @@ it hasn't been decided or started yet — tell Claude to do it.
   as final.
 - **Viewer account for the Rustaq demo** — see above, Kareem's call,
   not Claude's to create.
-- **Real contrast-ratio numbers** for the text tokens (SPEC.md section 3
-  flags its own figures as estimates).
 - **General camera/timing tuning** — a lot of the numbers in
   `timeline.ts` are first-pass estimates verified by screenshot, not
   hand-tuned by Kareem. Dev console hooks: `window.__heroTimeline` /

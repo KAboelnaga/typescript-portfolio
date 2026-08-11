@@ -40,9 +40,15 @@ export const AboutMeContent = forwardRef<HTMLDivElement, { className?: string }>
           className="w-full max-w-4xl"
           style={{ textShadow: `0 2px 20px ${colors.void}, 0 1px 4px ${colors.void}` }}
         >
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-low sm:text-sm">
+          {/* `h2`, not `p` — every other section on the page (Work, Projects,
+              Skills, Background, Contact) opens with a real heading; this
+              one was the one exception, so a screen reader's "jump by
+              heading" navigation skipped straight from the name (h1) to
+              Work (h2), silently missing this whole section. Same visual
+              styling either way — only the semantics changed. */}
+          <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-text-low sm:text-sm">
             About me
-          </p>
+          </h2>
 
           <p className="mt-6 max-w-3xl font-about text-lg leading-snug sm:text-xl">
             <WordReveal

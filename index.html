@@ -10,23 +10,42 @@
       content="Full-stack developer in Alexandria, Egypt. Django, React, PostgreSQL. Built a municipal inspection system in Oman, live and in daily use."
     />
     <title>Kareem Aboelnaga — Full-Stack Developer</title>
+    <link rel="canonical" href="https://typescript-portfolio.vercel.app/" />
 
     <!-- Without these, every share (Slack, DMs, LinkedIn) renders as a bare
-         link — og-image.png is a static render of the hero. -->
+         link — og-image.png is a static render of the hero. Image/url are
+         absolute, not root-relative — some scrapers don't reliably resolve
+         a relative og:image against the page URL themselves. -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://typescript-portfolio.vercel.app/" />
     <meta property="og:title" content="Kareem Aboelnaga — Full-Stack Developer" />
     <meta
       property="og:description"
       content="Full-stack developer in Alexandria, Egypt. Django, React, PostgreSQL. Built a municipal inspection system in Oman, live and in daily use."
     />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image" content="https://typescript-portfolio.vercel.app/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Kareem Aboelnaga — Full-Stack Developer" />
     <meta
       name="twitter:description"
       content="Full-stack developer in Alexandria, Egypt. Django, React, PostgreSQL. Built a municipal inspection system in Oman, live and in daily use."
     />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:image" content="https://typescript-portfolio.vercel.app/og-image.png" />
+
+    <!-- Structured data — lets Google associate this page with Kareem as a
+         Person (potential rich-result eligibility) rather than treating it
+         as an anonymous document. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "Kareem Aboelnaga",
+        "url": "https://typescript-portfolio.vercel.app/",
+        "jobTitle": "Full-Stack Developer",
+        "description": "Full-stack developer in Alexandria, Egypt. Django, React, PostgreSQL. Built a municipal inspection system in Oman, live and in daily use.",
+        "sameAs": ["https://github.com/KAboelnaga", "https://www.linkedin.com/in/kaboelnaga"]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

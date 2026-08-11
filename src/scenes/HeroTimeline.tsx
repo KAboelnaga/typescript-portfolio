@@ -382,13 +382,23 @@ export function HeroTimeline({
       const step = n > 1 ? (codeWords.duration - wordDuration) / (n - 1) : 0;
       wordEls.forEach((el, i) => {
         const wordStart = codeWords.start + i * step;
-        tl.fromTo(
-          el,
-          { opacity: 0, scale: 0.2 },
-          { opacity: 1, scale: 3.2, duration: wordDuration, ease: 'power1.in' },
-          wordStart,
-        );
-        tl.to(el, { opacity: 0, duration: wordDuration * 0.4 }, wordStart + wordDuration * 0.6);
+        // Scale keeps its own full-duration growth curve, unaffected —
+        // only `opacity` needed splitting. It used to be a `fromTo` (0->1)
+        // spanning the *entire* wordDuration bundled together with scale,
+        // plus a separate fade-out `to` (->0) starting at 60% through that
+        // same span — two tweens both driving `opacity` on the same
+        // element during their 60%-100% overlap, and GSAP has no built-in
+        // resolution for that inside one timeline (each frame just takes
+        // whichever tween rendered last), so the fade-out always won and
+        // opacity never got past ease power1.in's value at the 60% mark
+        // (~0.36) before being pulled back to 0. Now the fade-in tween's
+        // own duration ends exactly when the fade-out tween starts, so
+        // only one tween is ever driving `opacity` at any instant — fade-in
+        // actually reaches 1 before fade-out begins.
+        tl.fromTo(el, { scale: 0.2 }, { scale: 3.2, duration: wordDuration, ease: 'power1.in' }, wordStart);
+        const fadeInDuration = wordDuration * 0.6;
+        tl.fromTo(el, { opacity: 0 }, { opacity: 1, duration: fadeInDuration, ease: 'power1.in' }, wordStart);
+        tl.to(el, { opacity: 0, duration: wordDuration * 0.4, ease: 'power1.out' }, wordStart + fadeInDuration);
       });
     }
 

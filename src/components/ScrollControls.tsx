@@ -71,8 +71,13 @@ function ArrowUpIcon() {
   );
 }
 
+// Had `focus-visible:outline-none` alongside `focus-visible:text-signal` —
+// a text-color-only focus indicator, same issue as Navbar.tsx (found via
+// the same real Tab pass): too subtle against `text-low`'s already-dim
+// base color to reliably read as "focused." Site-wide `:focus-visible`
+// (index.css) covers it now, on top of (not instead of) the color shift.
 const buttonClass =
-  'group fixed z-[60] flex items-center gap-3 text-text-low transition-colors duration-300 hover:text-signal focus-visible:text-signal focus-visible:outline-none';
+  'group fixed z-[60] flex items-center gap-3 text-text-low transition-colors duration-300 hover:text-signal focus-visible:text-signal';
 
 const iconWrapClass = 'relative flex h-[34px] w-[34px] shrink-0 items-center justify-center';
 

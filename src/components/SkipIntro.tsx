@@ -58,7 +58,10 @@ export function SkipIntro() {
       // unreachable, covered by this button sitting on the same z-index
       // right on top of it). sm:top-4 restores the original beside-the-nav
       // position once the pill is comfortably narrower than the viewport.
-      className={`fixed left-4 top-20 z-50 rounded-full border border-surf-3 bg-void/70 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.15em] text-text-low backdrop-blur transition-all duration-300 hover:text-signal focus-visible:outline-none sm:left-6 sm:top-5 sm:text-xs ${
+      // Had `focus-visible:outline-none` with no replacement — completely
+      // invisible on keyboard focus, found via a real Tab pass. Site-wide
+      // `:focus-visible` (index.css) covers it now.
+      className={`fixed left-4 top-20 z-50 rounded-full border border-surf-3 bg-void/70 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.15em] text-text-low backdrop-blur transition-all duration-300 hover:text-signal sm:left-6 sm:top-5 sm:text-xs ${
         visible ? 'opacity-100' : 'pointer-events-none opacity-0'
       }`}
     >
