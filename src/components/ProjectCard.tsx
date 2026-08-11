@@ -29,12 +29,20 @@ import { ProjectPreviewPopup } from './ProjectPreviewPopup';
  * clicks that originate from an actual link/button inside the card, so
  * clicking "view repo" only ever opens the repo, never both.
  *
- * "Bind tap as well: hover doesn't exist on touch devices" (CONTENT-LIVE.md)
- * — the preview popup used to only ever trigger on `onMouseEnter`, so a
- * phone visitor got no visual evidence at all, ever. `onTouchStart` fires
- * the same `onEnter` a real hover would; the outbound links still open in
- * a new tab regardless of input method, so the popup stays visible on the
- * original tab rather than needing to be dismissed first.
+ * "The popup image for repos on mobile are pretty miserable in
+ * navigation" — `onTouchStart` used to fire the same floating popup a
+ * real hover would ("hover doesn't exist on touch devices," a real
+ * problem this was fixing), but `ProjectPreviewPopup` is 480px wide,
+ * built assuming room to sit *beside* the hovered card on a real
+ * pointer-driven layout — on a ~390px phone viewport it can only clamp
+ * to the left edge and ends up overlapping most of the screen, triggered
+ * by a scroll-passing touch, not a deliberate request. Two options: drop
+ * the mobile preview entirely, or give it real space instead of forcing
+ * a desktop-shaped popup into it. The image is real evidence a live
+ * product exists — worth keeping, not worth it being miserable to see —
+ * so below `sm:` the popup is gone and the card instead gets a plain
+ * cover image/video inline at its own top edge, no interaction needed,
+ * nothing to accidentally trigger while scrolling past.
  */
 export function ProjectCard({ project }: { project: Project }) {
   const [hovered, setHovered] = useState(false);
@@ -46,6 +54,14 @@ export function ProjectCard({ project }: { project: Project }) {
 
   function onEnter() {
     if (!hasPreview) return;
+    // Removing the `onTouchStart` handler wasn't enough on its own — a
+    // real tap still reaches this via the browser's own compatibility
+    // `mouseenter` it synthesizes after `touchend` (confirmed via
+    // Playwright's `.tap()`, which reproduces the same thing). Same
+    // `(pointer: fine)` check CustomCursor.tsx already uses to gate
+    // itself to real desktop input — belt-and-suspenders with the inline
+    // mobile image below actually not existing for `sm:` and up.
+    if (!window.matchMedia('(pointer: fine)').matches) return;
     rectRef.current = cardRef.current?.getBoundingClientRect() ?? null;
     setHovered(true);
   }
@@ -71,14 +87,34 @@ export function ProjectCard({ project }: { project: Project }) {
         ref={cardRef}
         onMouseEnter={onEnter}
         onMouseLeave={() => setHovered(false)}
-        onTouchStart={onEnter}
         onClick={onCardClick}
         onKeyDown={onCardKeyDown}
         tabIndex={primaryUrl ? 0 : undefined}
         role={primaryUrl ? 'link' : undefined}
         data-cursor-hover={primaryUrl ? '' : undefined}
-        className={`flex h-full flex-col gap-4 rounded-lg border border-transparent bg-surf-1 p-6 transition-[transform,background-color,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1.5 hover:border-surf-3 hover:bg-surf-2 hover:shadow-[0_24px_48px_-16px_rgba(0,0,0,0.55)] sm:p-8 ${primaryUrl ? 'cursor-pointer' : ''}`}
+        className={`flex h-full flex-col gap-4 overflow-hidden rounded-lg border border-transparent bg-surf-1 p-6 transition-[transform,background-color,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1.5 hover:border-surf-3 hover:bg-surf-2 hover:shadow-[0_24px_48px_-16px_rgba(0,0,0,0.55)] sm:p-8 ${primaryUrl ? 'cursor-pointer' : ''}`}
       >
+        {hasPreview && (
+          <div className="-mx-6 -mt-6 shrink-0 sm:hidden">
+            {project.previewVideo ? (
+              <video
+                src={project.previewVideo}
+                className="aspect-video w-full object-cover"
+                autoPlay
+                muted
+                loop
+                playsInline
+              />
+            ) : (
+              <img
+                src={project.previewImage}
+                alt={`${project.name} preview`}
+                className="aspect-video w-full object-cover"
+              />
+            )}
+          </div>
+        )}
+
         <p className="font-mono text-xs text-text-low sm:text-sm">
           {project.year} · {project.role}
         </p>

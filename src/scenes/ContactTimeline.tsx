@@ -47,13 +47,15 @@ const CURSOR_FOLLOW_UP_LIMIT = 0.19;
 // translate had that the *original* rotate never did: a limited range
 // and a spring back to the settled orientation on release, rather than
 // persisting and accumulating across drags. Sensitivity converts drag
-// pixels to radians; range clamps how far either axis can turn from
-// the settled `sceneYaw`/0 pitch ("limited"). Duration raised (0.7 ->
-// 0.9) alongside the 2026-08-10 ease change below — "a smoother
-// animation of the release."
+// pixels to radians; range clamps how far yaw can turn from the settled
+// `sceneYaw` ("limited"). Duration raised (0.7 -> 0.9) alongside the
+// 2026-08-10 ease change below — "a smoother animation of the release."
+// Range roughly tripled (0.5 -> 1.5 rad, ~29° -> ~86°) — "increase the
+// range of him rotating a lot." Pitch dropped entirely (used to be a
+// second, independent 0.35 rad range from vertical drag) — see
+// `onPointerMoveDrag`'s own comment for why.
 const DRAG_SENSITIVITY = 0.006;
-const DRAG_YAW_RANGE = 0.5;
-const DRAG_PITCH_RANGE = 0.35;
+const DRAG_YAW_RANGE = 1.5;
 const SPRING_BACK_DURATION = 0.9;
 
 interface Props {
@@ -62,8 +64,8 @@ interface Props {
   textRef: RefObject<HTMLDivElement | null>;
   upperBody: THREE.Group | null;
   // Whole loaded model (desk + monitor + character) — press-and-drag
-  // rotates it a limited amount and springs back to its settled
-  // orientation on release (see DRAG_YAW_RANGE/DRAG_PITCH_RANGE).
+  // rotates it (yaw only) a limited amount and springs back to its
+  // settled orientation on release (see DRAG_YAW_RANGE).
   sceneRoot: THREE.Group | null;
   // Isolated head-only pivot for cursor-follow — see CURSOR_FOLLOW_RANGE.
   head: THREE.Group | null;
@@ -237,19 +239,17 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     // Interactive once fully settled. Two independent things, on two
     // different nodes so they don't fight each other:
     // - Press-and-drag rotates the *whole object* (sceneRoot — desk,
-    //   monitor, and character together) a limited amount around its
-    //   settled orientation (yaw from horizontal drag, pitch from
-    //   vertical, each independently clamped) and springs back to exactly
-    //   that settled orientation the instant the mouse releases.
+    //   monitor, and character together) around its settled orientation,
+    //   yaw only (see the "y axis... moves with an angle" comment on
+    //   `onPointerMoveDrag` below), and springs back to exactly that
+    //   settled orientation the instant the mouse releases.
     // - When not dragging, only the isolated headPivot (see Character.tsx)
     //   subtly turns toward the cursor — "his face only to be moving," not
     //   the whole body.
     const dom = gl.domElement;
     let dragging = false;
     let startClientX = 0;
-    let startClientY = 0;
     let baseYaw = sceneYaw;
-    const basePitch = 0;
 
     // "The cursor follow shouldn't be after I reach [the end of the
     // scroll] — it should be after it [the object] reaches the desired
@@ -269,7 +269,6 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       if (!settled() || !sceneRoot) return;
       dragging = true;
       startClientX = e.clientX;
-      startClientY = e.clientY;
       // Read back the *current* resting yaw rather than assuming it's
       // still `sceneYaw` — a still-finishing spring-back tween from a
       // previous drag could otherwise get clobbered mid-flight.
@@ -280,26 +279,33 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     }
     function onPointerMoveDrag(e: PointerEvent) {
       if (!dragging || !sceneRoot) return;
-      const dYaw = (e.clientX - startClientX) * DRAG_SENSITIVITY;
-      const dPitch = (e.clientY - startClientY) * DRAG_SENSITIVITY;
+      // "The y axis that the object rotates upon needs fixing, I don't
+      // like that the object moves with an angle" — this used to also
+      // pitch (rotation.x) from vertical drag movement, so a diagonal
+      // drag spun the object around a tilted, off-vertical axis instead
+      // of a clean turn. Yaw only now — horizontal drag distance, however
+      // the pointer actually moved.
+      //
+      // "I would like for him to rotate in the same direction I pull him
+      // to" — verified empirically (Playwright + real drag gestures, not
+      // guessed): the *previous* sign turned the object's front *away*
+      // from the viewer when dragging right (and toward-camera, revealing
+      // his face, when dragging left) — backwards from "drag right, he
+      // turns right." Negated to match.
+      const dYaw = -(e.clientX - startClientX) * DRAG_SENSITIVITY;
       const yawOffset = Math.min(Math.max(dYaw, -DRAG_YAW_RANGE), DRAG_YAW_RANGE);
-      const pitchOffset = Math.min(Math.max(dPitch, -DRAG_PITCH_RANGE), DRAG_PITCH_RANGE);
       sceneRoot.rotation.y = baseYaw + yawOffset;
-      sceneRoot.rotation.x = basePitch + pitchOffset;
     }
     function onPointerUp(e: PointerEvent) {
       if (!dragging) return;
       dragging = false;
       dom.style.cursor = settled() ? 'grab' : 'default';
       if (sceneRoot) {
-        // "I want a smoother animation of the release of the object" —
-        // `elastic.out` deliberately overshot and oscillated a couple of
-        // times before settling (a literal spring). `power3.out` is a
-        // single smooth deceleration straight into the resting
-        // orientation instead, no bounce.
+        // "Make him return back to his position on release" — unchanged
+        // from before, still a single smooth deceleration straight back
+        // to the settled orientation, no bounce/overshoot.
         gsap.to(sceneRoot.rotation, {
           y: baseYaw,
-          x: basePitch,
           duration: SPRING_BACK_DURATION,
           ease: 'power3.out',
         });

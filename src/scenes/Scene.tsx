@@ -17,6 +17,7 @@ interface SceneProps {
   titleRef: RefObject<HTMLDivElement | null>;
   aboutMeRef: RefObject<HTMLDivElement | null>;
   codeWordsRef: RefObject<HTMLDivElement | null>;
+  projectsGlimpseRef: RefObject<HTMLDivElement | null>;
   welcomeRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -26,6 +27,7 @@ export function Scene({
   titleRef,
   aboutMeRef,
   codeWordsRef,
+  projectsGlimpseRef,
   welcomeRef,
 }: SceneProps) {
   const [upperBody, setUpperBody] = useState<THREE.Group | null>(null);
@@ -69,6 +71,7 @@ export function Scene({
           titleRef={titleRef}
           aboutMeRef={aboutMeRef}
           codeWordsRef={codeWordsRef}
+          projectsGlimpseRef={projectsGlimpseRef}
           welcomeRef={welcomeRef}
           lookAtRef={lookAtRef}
           onReady={handleReady}

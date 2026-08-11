@@ -37,6 +37,7 @@ interface Props {
   titleRef: RefObject<HTMLDivElement | null>;
   aboutMeRef: RefObject<HTMLDivElement | null>;
   codeWordsRef: RefObject<HTMLDivElement | null>;
+  projectsGlimpseRef: RefObject<HTMLDivElement | null>;
   welcomeRef: RefObject<HTMLDivElement | null>;
   lookAtRef: RefObject<{ x: number; y: number; z: number } | null>;
   onReady: () => void;
@@ -64,6 +65,7 @@ export function HeroTimeline({
   titleRef,
   aboutMeRef,
   codeWordsRef,
+  projectsGlimpseRef,
   welcomeRef,
   lookAtRef,
   onReady,
@@ -103,6 +105,9 @@ export function HeroTimeline({
     if (codeWordsRef.current) {
       gsap.set(codeWordsRef.current, { position: 'fixed', inset: 0, visibility: 'hidden' });
     }
+    if (projectsGlimpseRef.current) {
+      gsap.set(projectsGlimpseRef.current, { position: 'fixed', inset: 0, visibility: 'hidden' });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -114,7 +119,8 @@ export function HeroTimeline({
       !nameRef.current ||
       !titleRef.current ||
       !aboutMeRef.current ||
-      !codeWordsRef.current
+      !codeWordsRef.current ||
+      !projectsGlimpseRef.current
     ) {
       return;
     }
@@ -402,21 +408,33 @@ export function HeroTimeline({
       });
     }
 
-    // Final black-out before the pin releases into the real Projects
-    // section. Used to also show a "Projects I've built" title card here
-    // (ProjectsGlimpseOverlay) — CONTENT-LIVE.md (2026-08-11): cut, since
-    // the real Projects section's own heading ("Things I've built") reads
-    // seconds later, and the two near-identical phrases back to back said
-    // the same thing twice. Camera holds dead still at MONITOR_ZOOM_CAMERA
-    // for the rest of the pin — no further movement, no model rotation.
-    // Overlay goes fully opaque (was 0.85, translucent, before the title
-    // card was cut — see git history) so this still reads as "on black
-    // background, still inside the monitor" rather than fading to nothing.
-    // Ends exactly at progress 1 (pin release); the natural unpin +
-    // continued scroll cuts straight to the real Projects section
-    // underneath.
+    // Title card ("My Work") in the final black beat before the pin
+    // releases into the real Projects section. Was cut 2026-08-11 for
+    // reading too close to the real Projects section's own heading
+    // ("Things I've built") seconds later — restored after Kareem saw the
+    // cut live and didn't want a bare black beat there: "I want anything
+    // ['My Work'] to be put instead." Copy deliberately different from
+    // the section heading this time so it doesn't reintroduce the same
+    // repetition. Camera holds dead still at MONITOR_ZOOM_CAMERA for the
+    // rest of the pin — no further movement, no model rotation. Overlay
+    // goes fully opaque (was 0.85, translucent, before the title card was
+    // first cut — see git history) so this still reads as "on black
+    // background, still inside the monitor" rather than the close-up
+    // monitor texture bleeding through behind the heading. Ends exactly
+    // at progress 1 (pin release); the natural unpin + continued scroll
+    // cuts straight to the real Projects section underneath.
     const textIn = beat('projectsTextIn');
+    tl.set(projectsGlimpseRef.current, { visibility: 'visible' }, textIn.start);
     tl.to(overlayRef.current, { opacity: 1, duration: textIn.duration * 0.3 }, textIn.start);
+    const glimpseHeading = projectsGlimpseRef.current.querySelector('[data-glimpse-heading]');
+    if (glimpseHeading) {
+      tl.fromTo(
+        glimpseHeading,
+        { opacity: 0, y: 24, scale: 0.94 },
+        { opacity: 1, y: 0, scale: 1, duration: textIn.duration * 0.5, ease: 'power2.out' },
+        textIn.start,
+      );
+    }
 
     const st = ScrollTrigger.create({
       trigger: pinRef.current,

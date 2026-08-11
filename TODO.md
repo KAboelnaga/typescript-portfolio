@@ -5,6 +5,20 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Right now: unfinished from the last session
 
+- **2026-08-11 (22), done — see DONE.md for the full writeup.** "My
+  Work" title card restored after the code-words fly-through (different
+  copy than the original "Projects I've built," to avoid the repetition
+  that got it cut). Contact's drag-to-rotate fixed: yaw-only (pitch
+  removed, was making diagonal drags tilt on a skewed axis), direction
+  flipped to match the pull direction (verified empirically, not
+  guessed), range tripled (0.5 → 1.5 rad). Real mobile navbar — hamburger
+  + animated dropdown — replacing the horizontal-scroll pill. Mobile
+  project-card previews moved inline (bleeds to the card's top edge) —
+  the floating popup was unusable on touch (480px wide, no room on a
+  phone screen); `(pointer: fine)` now also gates the hover trigger since
+  removing the touch handler alone wasn't enough (a real tap still
+  reaches `onMouseEnter` via the browser's post-touch compatibility
+  event).
 - **2026-08-11 (21), done — see DONE.md for the full writeup.** Real
   Lighthouse numbers (not just a network audit) found mobile performance
   was actually 50/100 — 15.5s Time to Interactive, purely from JS
@@ -362,10 +376,9 @@ it hasn't been decided or started yet — tell Claude to do it.
   shrinking the text block) so it doesn't sit on top of him at all. Bigger
   change to an already-extensively-tuned sequence (`timeline.ts`) — worth
   doing, not attempted without checking first.
-- **Navbar's horizontal scroll has no "more items" affordance** on mobile
-  — it does scroll (`scrollWidth` 551px vs `clientWidth` 356px, CONTACT/CV
-  are reachable), just nothing hints at it. Minor, noticed during the
-  2026-08-11 (14) mobile pass, not fixed.
+- ~~Navbar's horizontal scroll has no "more items" affordance on
+  mobile~~ — moot, fixed properly in 2026-08-11 (22): mobile gets a real
+  hamburger + dropdown now instead of the horizontally-scrolling pill.
 - **Copy sign-off on CONTENT.md's content as actually implemented.**
   Applied verbatim where CONTENT.md was explicit; a few judgment calls
   were made filling gaps it didn't cover directly (Work section's exact

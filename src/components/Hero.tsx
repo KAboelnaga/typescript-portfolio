@@ -2,6 +2,7 @@ import { lazy, Suspense, useRef } from 'react';
 import { fontVariation } from '../theme/tokens';
 import { AboutMeContent } from './AboutMeContent';
 import { CodeWordsOverlay } from './CodeWordsOverlay';
+import { ProjectsGlimpseOverlay } from './ProjectsGlimpseOverlay';
 import { useTheme } from '../theme/ThemeContext';
 
 // Lazy, not a static import — three/@react-three/fiber/@react-three/drei
@@ -46,6 +47,9 @@ export function Hero() {
   // acceptable to require JS, unlike the name.
   const aboutMeRef = useRef<HTMLDivElement>(null);
   const codeWordsRef = useRef<HTMLDivElement>(null);
+  // Title card in the final black beat before the pin releases into the
+  // real Projects section — see ProjectsGlimpseOverlay.tsx.
+  const projectsGlimpseRef = useRef<HTMLDivElement>(null);
   // "In the first black screen, make a welcoming message appear when the
   // scroll is ready to be made" — fades in once HeroTimeline's ScrollTrigger
   // actually exists (not just on mount; the model still has to load first),
@@ -62,6 +66,7 @@ export function Hero() {
           titleRef={titleRef}
           aboutMeRef={aboutMeRef}
           codeWordsRef={codeWordsRef}
+          projectsGlimpseRef={projectsGlimpseRef}
           welcomeRef={welcomeRef}
         />
       </Suspense>
@@ -136,6 +141,11 @@ export function Hero() {
       />
 
       <CodeWordsOverlay ref={codeWordsRef} className="pointer-events-none absolute inset-0 z-20" />
+
+      <ProjectsGlimpseOverlay
+        ref={projectsGlimpseRef}
+        className="pointer-events-none absolute inset-0 z-20"
+      />
     </header>
   );
 }

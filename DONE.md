@@ -4,6 +4,74 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-11 (22) — "My Work" title card restored after the code-words fly-through; Contact's end-scene drag rotation fixed (yaw-only, correct direction, 3x range); a real mobile navbar (hamburger + animated dropdown) replacing the horizontal-scroll pill; mobile project-card previews moved inline after the floating popup proved unusable on touch
+
+Four separate, concrete asks in one message, plus a mid-turn addition.
+
+**"I want anything ['My Work'] to be put instead"** — Kareem noticed the
+bare black beat where a "Projects I've built" title card used to sit,
+right after the code-words fly-through and before the pin releases into
+the real Projects section (cut earlier this session for reading too close
+to Projects' own "Things I've built" heading seconds later). Recovered
+the exact original component/wiring from git history (`ProjectsGlimpseOverlay.tsx`,
+threaded through `Scene.tsx`/`HeroTimeline.tsx`/`Hero.tsx`) and swapped
+in different copy — "My Work" — specifically so restoring it doesn't
+reintroduce the same repetition that got it cut the first time.
+
+**Contact's drag-to-rotate, three real complaints, all verified empirically
+(Playwright + real drag gestures, not guessed):**
+- *"The y axis... moves with an angle"* — root cause: vertical drag
+  distance was also driving `rotation.x` (pitch) alongside horizontal
+  drag driving `rotation.y` (yaw), so any diagonal drag spun the object
+  around a tilted axis instead of a clean turn. Pitch removed entirely;
+  yaw only now, confirmed via a diagonal-drag test (`rotation.x` stays
+  exactly 0 regardless of vertical mouse movement).
+- *"Rotate in the same direction I pull him to"* — measured the actual
+  before/after via screenshots at known drag deltas: the old sign turned
+  the object's front *away* from the viewer when dragging right (toward-
+  camera, revealing his face, when dragging left) — backwards. Negated.
+- *"Increase the range... a lot"* — `DRAG_YAW_RANGE` 0.5 → 1.5 rad (~29°
+  → ~86°), 3x.
+- *"Make him return back to his position on release"* — unchanged, still
+  works exactly as before (verified: releases spring back to the exact
+  pre-drag `rotation.y`, `power3.out`, no bounce).
+
+**Mobile navbar: hamburger + animated dropdown, replacing the horizontal-
+scroll pill on narrow viewports** (desktop pill untouched). Hamburger
+icon morphs into an X on open (CSS transform, not a hard swap); the
+dropdown panel fades/scales in from the button with GSAP, items stagger
+in right after — closes on item click (after scrolling to it, same
+`goTo` as desktop), outside click, or Escape. Verified: opens, all three
+close paths work, selecting an item scrolls to the right section and
+closes the menu, zero console errors on a real production build.
+
+**"The popup image for repos on mobile are pretty miserable in
+navigation, can we just disable it, what's better — an image in the card
+or deleting it?"** Root cause: `ProjectPreviewPopup` is 480px wide, sized
+for sitting beside a hovered card on desktop — on a ~390px phone it can
+only clamp to the screen edge and ends up covering most of the viewport,
+triggered by a scroll-passing touch. Went with embedding the image
+instead of deleting it — it's real evidence a live product exists, not
+worth losing, just worth not being miserable to see. Below `sm:`, the
+card now shows the preview image/video inline at its own top edge (no
+interaction needed, bleeds to the card's edges via negative margin,
+clipped to its rounded corners); the floating popup is desktop-only.
+Removing the `onTouchStart` handler that used to trigger the popup on
+tap wasn't sufficient on its own — a real tap still reached `onMouseEnter`
+via the browser's own post-touch compatibility mouse event (confirmed via
+Playwright's `.tap()`, which reproduces the same thing) — so `onEnter`
+now also checks `(pointer: fine)`, the same guard `CustomCursor.tsx`
+already uses to gate itself to real desktop input.
+
+Verified: `npx tsc -b`, `npx oxlint src/`, `npm run build` all clean;
+axe-core against a real production build (0 violations, both themes, 2
+repeated runs each); a full mobile-viewport Playwright pass (hamburger
+menu open/close/scroll, card inline image visible + no popup on tap, zero
+horizontal overflow, zero console errors) and a desktop pass (hover
+popup still works, inline mobile image correctly `display: none` there,
+"My Work" card confirmed showing at the right beat) — both against the
+production build, not the dev server.
+
 ## 2026-08-11 (21) — Real Lighthouse numbers turned up what the (20) network audit missed: mobile performance was 50/100 (15.5s Time to Interactive) purely from JS bootup cost, not network transfer. Code-split all three `<Canvas>` mounts out of the main bundle — mobile perf 50 → 80-84, desktop 87 → 97. A second, more thorough brand-color contrast pass also caught 9 more dark-mode failures the first pass's animation-timing-dependent axe scan missed entirely
 
 "Rerate the project and see what you can do to improve it, go ahead."
