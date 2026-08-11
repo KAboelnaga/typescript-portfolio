@@ -13,6 +13,9 @@ export const skillTiers: SkillTier[] = [
       'Python',
       'Django',
       'Django Admin',
+      // Kareem, 2026-08-11: "add DRF to Daily" — spelled out per Kareem's
+      // follow-up ("DRF stands for Django REST Framework, change it").
+      'Django REST Framework',
       'PostgreSQL',
       'REST APIs',
       'React',
@@ -36,10 +39,39 @@ export const skillTiers: SkillTier[] = [
       'Apache',
       'Bash',
       'Unit testing',
+      // CONTENT-LIVE.md (2026-08-11): "TypeScript moved up from Learning
+      // — this site is a TypeScript React Three Fiber build, leaving it
+      // in Learning while shipping it undersells you."
+      'TypeScript',
+      // Kareem, 2026-08-11: "add Gunicorn/WSGI, Context API, React Hook
+      // Form, SCSS, HTML5/CSS3, Three.js and GSAP to Comfortable." Split
+      // "HTML5/CSS3" into two real tags — HTML5 and CSS3 each have their
+      // own separate brand mark, and cramming two logos into one pill
+      // isn't something SkillIcon supports (one path per tag). Named
+      // "CSS" not "CSS3" to match the actual logo used (see
+      // skillIcons.ts) — simple-icons doesn't carry the old W3C "CSS3"
+      // shield under that name, and mislabeling a different mark as
+      // "CSS3" would be its own small dishonesty.
+      'Gunicorn/WSGI',
+      'Context API',
+      'React Hook Form',
+      'SCSS',
+      'HTML5',
+      'CSS',
+      'Three.js',
+      'GSAP',
     ],
   },
   {
     tier: 'Learning',
-    skills: ['Java', 'Spring Boot', 'TypeScript'],
+    skills: ['Java', 'Spring Boot'],
+  },
+  // Kareem, 2026-08-11: "restore the Concepts row with role-based access
+  // control leading it." Broader patterns/competencies rather than
+  // specific tools — a separate axis from the Daily/Comfortable/Learning
+  // proficiency ladder above, not another rung on it.
+  {
+    tier: 'Concepts',
+    skills: ['Role-based access control'],
   },
 ];

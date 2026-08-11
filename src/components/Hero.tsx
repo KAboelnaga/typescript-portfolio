@@ -3,9 +3,12 @@ import { fontVariation } from '../theme/tokens';
 import { Scene } from '../scenes/Scene';
 import { AboutMeContent } from './AboutMeContent';
 import { CodeWordsOverlay } from './CodeWordsOverlay';
-import { ProjectsGlimpseOverlay } from './ProjectsGlimpseOverlay';
+import { useTheme } from '../theme/ThemeContext';
 
 export function Hero() {
+  // Read for the name/title text-shadow below — see that comment for why
+  // this can't be a fixed dark color.
+  const { colors } = useTheme();
   // Pinned for the whole scroll sequence — intro turn, entrance text, About
   // Me, monitor approach, black pass-through, code words — see
   // HeroTimeline.tsx. Full viewport height per Kareem's request, not the
@@ -27,7 +30,6 @@ export function Hero() {
   // acceptable to require JS, unlike the name.
   const aboutMeRef = useRef<HTMLDivElement>(null);
   const codeWordsRef = useRef<HTMLDivElement>(null);
-  const projectsGlimpseRef = useRef<HTMLDivElement>(null);
   // "In the first black screen, make a welcoming message appear when the
   // scroll is ready to be made" — fades in once HeroTimeline's ScrollTrigger
   // actually exists (not just on mount; the model still has to load first),
@@ -43,7 +45,6 @@ export function Hero() {
         titleRef={titleRef}
         aboutMeRef={aboutMeRef}
         codeWordsRef={codeWordsRef}
-        projectsGlimpseRef={projectsGlimpseRef}
         welcomeRef={welcomeRef}
       />
 
@@ -69,9 +70,20 @@ export function Hero() {
           already been tuned a lot (see timeline.ts's history) — this is
           the safe, purely-additive version: a text-shadow strong enough
           to stay legible regardless of what's behind it, inherited down
-          to every line in this block rather than repeated per element. */}
+          to every line in this block rather than repeated per element.
+          "The text in the hero and about in light mode are bad colored"
+          — real regression from that first fix: it hardcoded a *dark*
+          shadow color, which fogged this theme's own *dark* text
+          (`text-hi`/`text-mid` in light mode) into an illegible grey
+          smudge instead of protecting it. Uses `colors.void` — the
+          theme's own page-background color — instead of a fixed value,
+          so the halo is dark in dark mode (where the text is light and
+          needs protection from lit monitor/desk areas) and light in
+          light mode (where the text is dark and needs protection from
+          the character, who stays a dark silhouette in both themes). */}
       <div
-        className="pointer-events-none absolute inset-0 flex flex-col justify-center px-6 sm:px-10 lg:px-16 [text-shadow:0_2px_20px_rgba(10,13,18,0.9),0_1px_4px_rgba(10,13,18,0.95)]"
+        className="pointer-events-none absolute inset-0 flex flex-col justify-center px-6 sm:px-10 lg:px-16"
+        style={{ textShadow: `0 2px 20px ${colors.void}, 0 1px 4px ${colors.void}` }}
       >
         <div className="w-full max-w-3xl">
           <div ref={nameRef}>
@@ -106,11 +118,6 @@ export function Hero() {
       />
 
       <CodeWordsOverlay ref={codeWordsRef} className="pointer-events-none absolute inset-0 z-20" />
-
-      <ProjectsGlimpseOverlay
-        ref={projectsGlimpseRef}
-        className="pointer-events-none absolute inset-0 z-20"
-      />
     </header>
   );
 }

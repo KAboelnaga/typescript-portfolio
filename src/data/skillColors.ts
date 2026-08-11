@@ -33,4 +33,18 @@ export const skillColors: Record<string, string> = {
   Java: '#EA7D25',
   'Spring Boot': '#6DB33F',
   TypeScript: '#3178C6',
+  // Added 2026-08-11 for the Comfortable-tier additions. Three.js's real
+  // brand color is pure black (#000000) — same invisible-on-this-site's-
+  // near-black-dark-theme problem as Django/Flask/SQLite above, and
+  // unlike those three it has no documented lighter secondary color to
+  // borrow, so it gets the same neutral-grey treatment Flask already
+  // uses (distinguishable, not fabricated — just a visible neutral
+  // rather than true black).
+  'Gunicorn/WSGI': '#499848',
+  SCSS: '#CC6699',
+  'Three.js': '#B0B0B0',
+  GSAP: '#88CE02',
+  'React Hook Form': '#EC5990',
+  HTML5: '#E34F26',
+  CSS: '#663399',
 };

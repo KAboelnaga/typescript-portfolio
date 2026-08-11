@@ -37,7 +37,6 @@ interface Props {
   titleRef: RefObject<HTMLDivElement | null>;
   aboutMeRef: RefObject<HTMLDivElement | null>;
   codeWordsRef: RefObject<HTMLDivElement | null>;
-  projectsGlimpseRef: RefObject<HTMLDivElement | null>;
   welcomeRef: RefObject<HTMLDivElement | null>;
   lookAtRef: RefObject<{ x: number; y: number; z: number } | null>;
   onReady: () => void;
@@ -65,7 +64,6 @@ export function HeroTimeline({
   titleRef,
   aboutMeRef,
   codeWordsRef,
-  projectsGlimpseRef,
   welcomeRef,
   lookAtRef,
   onReady,
@@ -73,13 +71,13 @@ export function HeroTimeline({
   const { camera } = useThree();
   const preparedRef = useRef(false);
   const createdRef = useRef(false);
-  // Read once, at whatever theme is active when this effect (re)builds the
-  // GSAP timeline below — the About Me word-reveal's colors are baked into
-  // the tween at that point. Toggling the theme mid-session while already
-  // scrolled into this pin won't retroactively recolor it; rebuilding the
-  // whole timeline on every theme change wasn't worth the added risk here.
-  // See TODO.md.
   const { colors } = useTheme();
+  // Live-read by the About Me word-reveal tweens below via function-based
+  // GSAP values (`() => colorsRef.current.textLow`) instead of being baked
+  // into the tween as a plain value — see the `colors` effect further down
+  // for why.
+  const colorsRef = useRef(colors);
+  const tlRef = useRef<gsap.core.Timeline | null>(null);
 
   // Initial framing + hide/reposition DOM overlays, before paint. Not gated
   // on the model loading — only the character-turn tween needs upperBody,
@@ -105,9 +103,6 @@ export function HeroTimeline({
     if (codeWordsRef.current) {
       gsap.set(codeWordsRef.current, { position: 'fixed', inset: 0, visibility: 'hidden' });
     }
-    if (projectsGlimpseRef.current) {
-      gsap.set(projectsGlimpseRef.current, { position: 'fixed', inset: 0, visibility: 'hidden' });
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -119,8 +114,7 @@ export function HeroTimeline({
       !nameRef.current ||
       !titleRef.current ||
       !aboutMeRef.current ||
-      !codeWordsRef.current ||
-      !projectsGlimpseRef.current
+      !codeWordsRef.current
     ) {
       return;
     }
@@ -170,6 +164,7 @@ export function HeroTimeline({
         if ('fov' in camera) (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
       },
     });
+    tlRef.current = tl;
 
     const beat = (name: keyof typeof HERO_BEATS) => {
       const [start, end] = HERO_BEATS[name];
@@ -256,10 +251,17 @@ export function HeroTimeline({
       const wStep = wordSpan / wN;
       const wDuration = wStep * 1.1;
       aboutWords.forEach((el, i) => {
+        // Function-based values (re-evaluated on `tl.invalidate()`, see the
+        // `colors` effect below) instead of plain `colors.textLow`/`textHi`
+        // — so a theme toggle mid-scroll can repaint these words with the
+        // live theme's colors without rebuilding this whole effect (which
+        // previously caused a real bug: rebuilding on every toggle reset
+        // ScrollTrigger/the pinned camera, visibly moving the user on the
+        // page — see git history / DONE.md).
         tl.fromTo(
           el,
-          { color: colors.textLow },
-          { color: colors.textHi, duration: wDuration, ease: 'none' },
+          { color: () => colorsRef.current.textLow },
+          { color: () => colorsRef.current.textHi, duration: wDuration, ease: 'none' },
           aboutMeIn.start + i * wStep,
         );
       });
@@ -390,32 +392,21 @@ export function HeroTimeline({
       });
     }
 
-    // Projects title card — "the zoom out after text popping fast, remove
-    // it, I don't want it, just a large 'projects that I have done' text to
-    // appear then seeing my project." Camera holds dead still at
-    // MONITOR_ZOOM_CAMERA for the rest of the pin — no further movement, no
-    // model rotation. Overlay now goes fully opaque (was 0.85, translucent)
-    // — with the camera no longer moving away from this beat, holding at
-    // 0.85 left the monitor's baked-in code-line texture visible right
-    // behind the heading the whole time, at a close, skewed angle ("the
-    // text on monitor are skewed to the left, the rectangular ribbons, get
-    // rid of that"). Fully opaque removes it outright; still reads as "on
-    // black background, still inside the monitor," just without the
-    // distracting close-up texture bleeding through. Ends exactly at
-    // progress 1 (pin release); the natural unpin + continued scroll cuts
-    // straight to the real Projects section underneath.
+    // Final black-out before the pin releases into the real Projects
+    // section. Used to also show a "Projects I've built" title card here
+    // (ProjectsGlimpseOverlay) — CONTENT-LIVE.md (2026-08-11): cut, since
+    // the real Projects section's own heading ("Things I've built") reads
+    // seconds later, and the two near-identical phrases back to back said
+    // the same thing twice. Camera holds dead still at MONITOR_ZOOM_CAMERA
+    // for the rest of the pin — no further movement, no model rotation.
+    // Overlay goes fully opaque (was 0.85, translucent, before the title
+    // card was cut — see git history) so this still reads as "on black
+    // background, still inside the monitor" rather than fading to nothing.
+    // Ends exactly at progress 1 (pin release); the natural unpin +
+    // continued scroll cuts straight to the real Projects section
+    // underneath.
     const textIn = beat('projectsTextIn');
-    tl.set(projectsGlimpseRef.current, { visibility: 'visible' }, textIn.start);
     tl.to(overlayRef.current, { opacity: 1, duration: textIn.duration * 0.3 }, textIn.start);
-    const heading = projectsGlimpseRef.current.querySelector('[data-glimpse-heading]');
-    if (heading) {
-      tl.fromTo(
-        heading,
-        { opacity: 0, y: 24, scale: 0.94 },
-        { opacity: 1, y: 0, scale: 1, duration: textIn.duration * 0.5, ease: 'power2.out' },
-        textIn.start,
-      );
-    }
 
     const st = ScrollTrigger.create({
       trigger: pinRef.current,
@@ -491,23 +482,25 @@ export function HeroTimeline({
 
     return () => {
       createdRef.current = false;
+      tlRef.current = null;
       window.removeEventListener('scroll', onWelcomeScroll);
       st.kill();
       tl.kill();
     };
     // `colors` deliberately excluded — "toggling dark/light mode changes
-    // where I'm standing on the site" was a real bug, and this was the
-    // cause. `colors` used to be a dependency so the About Me word-reveal
-    // would use whichever theme was active; but since colors comes from
-    // `useTheme()` (a new object reference every toggle), including it
-    // here meant every theme toggle re-ran this *entire* effect — killing
+    // where I'm standing on the site" was a real bug: `colors` used to be a
+    // dependency so the About Me word-reveal would use whichever theme was
+    // active, but since it's a new object reference every toggle, including
+    // it here meant every theme toggle re-ran this *entire* effect — killing
     // and rebuilding the whole ScrollTrigger/GSAP timeline from scratch
     // while scrolled deep into the pin, which is what actually moved the
-    // visible position. `colors` is still read inside the effect via
-    // closure (whatever it was when the effect last (re)built) — this
-    // only stops that read from *forcing* a rebuild. The already-known
-    // tradeoff stands: toggling theme mid-session while already scrolled
-    // into the About Me beat won't retroactively recolor those words.
+    // visible position. The word-reveal tweens above read `colorsRef`
+    // instead (function-based values), and the effect right below this one
+    // repaints them in place on toggle — so this effect can stay excluded
+    // from `colors` without the color going stale, which is what happened
+    // before ("in dark mode [the About Me text is] in gold then with
+    // scroll turns into nearly black" — stale light-mode colors surviving
+    // a mid-session toggle to dark).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     upperBody,
@@ -519,11 +512,28 @@ export function HeroTimeline({
     titleRef,
     aboutMeRef,
     codeWordsRef,
-    projectsGlimpseRef,
     welcomeRef,
     lookAtRef,
     onReady,
   ]);
+
+  // Repaints the About Me word-reveal in place when the theme toggles —
+  // without touching the effect above (and therefore without rebuilding
+  // the pinned ScrollTrigger/camera timeline; see the comment on that
+  // effect's dependency array). `invalidate()` clears the cached start/end
+  // values GSAP recorded for the function-based `color` tweens, so they're
+  // recomputed from the now-current `colorsRef` on next render. Re-render
+  // at the timeline's *own current time* (not a new one) to repaint in
+  // place — the third `force` argument is required: GSAP's `.render()`
+  // skips work when the target time matches its cached time, which it
+  // always will here since nothing scrolled, only the color inputs did.
+  useEffect(() => {
+    colorsRef.current = colors;
+    const tl = tlRef.current;
+    if (!tl) return;
+    tl.invalidate();
+    tl.render(tl.time(), true, true);
+  }, [colors]);
 
   return null;
 }

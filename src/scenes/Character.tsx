@@ -172,23 +172,41 @@ export function Character({ onReady, onSceneReady, onHeadReady }: CharacterProps
     // code-editor mockup on the screen (`ui_sidebar`/`ui_file_*`/
     // `code_line_*`/`code_tok_*`/`code_cursor`, all siblings of
     // `monitor_screen` under `monitor_head`) sits noticeably off the
-    // screen's own center — confirmed by comparing real geometry, not
-    // eyeballed: the screen mesh's own local bounding-box center against
-    // the mockup nodes' combined center, several centimeters apart on the
-    // x-axis. Recentered by shifting every mockup node by the same real
-    // delta, computed here at runtime rather than a hand-picked constant,
-    // so it stays correct if the model is ever re-exported.
+    // screen's own center. First attempt at this fix used each node's
+    // `.position` alone as a stand-in for its center — wrong, and it
+    // showed: these bars are anchored at one edge, not their geometric
+    // center, so a plain average of `.position` values biases toward
+    // wherever most bars *start*, not where the content actually sits.
+    // Confirmed by comparing real geometry a second time, this time each
+    // node's actual `geometry.boundingBox` (accounts for how wide each
+    // bar really is, not just where it starts): the content's *true*
+    // combined width (0.516) turned out to already match the screen's
+    // width (0.516) almost exactly — it was never too big for the
+    // screen, just shifted right by the same 0.063 the first fix then
+    // made *worse* by shifting it further right instead of left ("the
+    // text... is outside the scope of the monitor" — that regression,
+    // confirmed live). Recentered for real this time, off the same
+    // per-node `geometry.boundingBox` this comment describes, still
+    // computed at runtime rather than a hand-picked constant so it stays
+    // correct if the model is ever re-exported.
     const monitorHead = scene.getObjectByName('monitor_head');
     const monitorScreen = monitorHead?.getObjectByName('monitor_screen') as THREE.Mesh | undefined;
     if (monitorHead && monitorScreen) {
       monitorScreen.geometry.computeBoundingBox();
       const screenBox = monitorScreen.geometry.boundingBox;
       const contentNodes = monitorHead.children.filter(
-        (n) => n.name.startsWith('ui_') || n.name.startsWith('code_'),
+        (n): n is THREE.Mesh =>
+          (n.name.startsWith('ui_') || n.name.startsWith('code_')) && n instanceof THREE.Mesh,
       );
       if (screenBox && contentNodes.length > 0) {
         const contentBox = new THREE.Box3();
-        contentNodes.forEach((n) => contentBox.expandByPoint(n.position));
+        contentNodes.forEach((n) => {
+          n.geometry.computeBoundingBox();
+          const b = n.geometry.boundingBox;
+          if (!b) return;
+          contentBox.expandByPoint(new THREE.Vector3(n.position.x + b.min.x, n.position.y + b.min.y, 0));
+          contentBox.expandByPoint(new THREE.Vector3(n.position.x + b.max.x, n.position.y + b.max.y, 0));
+        });
         const screenCenter = screenBox.getCenter(new THREE.Vector3());
         const contentCenter = contentBox.getCenter(new THREE.Vector3());
         const deltaX = screenCenter.x - contentCenter.x;

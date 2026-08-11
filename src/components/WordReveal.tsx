@@ -67,8 +67,20 @@ export function WordReveal({
 
   return (
     <span ref={containerRef} className={className}>
+      {/* `text-text-low` (a live CSS var), not `style={{ color:
+          colors.textLow }}` — GSAP writes this element's inline
+          `color` directly once its tween takes over, and an inline
+          style here would fight it: any unrelated re-render of this
+          component (e.g. a theme toggle, since it reads `useTheme()`
+          itself) re-applies the JSX-declared inline color, stomping
+          whatever GSAP had rendered back to this default until the
+          next scroll event re-drives the tween. A plain class has no
+          such conflict — React never touches `color` here again after
+          first paint, so GSAP's imperative writes stick, and the CSS
+          var itself still updates live on toggle for any span GSAP
+          hasn't reached yet. */}
       {words.map((word, i) => (
-        <span key={i} data-word-reveal style={{ color: colors.textLow }}>
+        <span key={i} data-word-reveal className="text-text-low">
           {word}
           {i < words.length - 1 ? ' ' : ''}
         </span>

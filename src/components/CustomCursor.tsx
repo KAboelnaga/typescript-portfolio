@@ -167,15 +167,32 @@ export function CustomCursor() {
 
   return (
     <>
+      {/* "The cursor and its outline are light grey in light mode, let me
+          see them in black" — `mix-blend-difference` is what makes this
+          cursor visible over anything (it inverts against whatever's
+          under it), but it only actually reads as *black* when the
+          source color is white — difference(white, backdrop) comes out
+          dark whenever the backdrop itself is light, which is exactly
+          light mode's page background. `text-hi` broke this: it's
+          *theme-reactive* (light in dark mode, dark in light mode, for
+          reading actual text), and a *dark* source against light mode's
+          *light* background differences out to a light grey — backwards
+          from what the blend mode needs. Fixed source color instead
+          (`text-hi` isn't even in play here) — white works correctly in
+          both themes: near-white result on dark mode's dark background,
+          near-black result on light mode's light one. Tailwind has no
+          `white` utility here (this project's `colors` config replaces
+          the default palette rather than extending it), hence the
+          arbitrary-value classes. */}
       <div
         ref={dotRef}
         aria-hidden="true"
-        className="pointer-events-none fixed left-0 top-0 z-[100] h-[10px] w-[10px] rounded-full bg-text-hi opacity-0 mix-blend-difference will-change-transform"
+        className="pointer-events-none fixed left-0 top-0 z-[100] h-[10px] w-[10px] rounded-full bg-[#fff] opacity-0 mix-blend-difference will-change-transform"
       />
       <div
         ref={outlineRef}
         aria-hidden="true"
-        className="pointer-events-none fixed left-0 top-0 z-[100] border border-text-hi opacity-0 mix-blend-difference will-change-transform"
+        className="pointer-events-none fixed left-0 top-0 z-[100] border border-[#fff] opacity-0 mix-blend-difference will-change-transform"
       />
     </>
   );

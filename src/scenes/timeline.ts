@@ -142,27 +142,37 @@ export const MONITOR_EMISSIVE_START = 0.2;
 export const MONITOR_EMISSIVE_END = 1.0;
 
 // Snippets for the code-words flythrough (monitorBlack -> codeWords beats).
-// Generic on purpose — not meant to be read, just recognized as "code" while
-// flying past.
+// CONTENT-LIVE.md (2026-08-11): "replace all 18 stock snippets with real
+// lines from my own repos" — the previous list was generic placeholder
+// code (a fake `orders` table from an e-commerce project not on this
+// site, a `git commit -m "fix"` joke about sloppy practice), not
+// something to leave in front of a hiring manager. Real single lines
+// pulled from Pet_Society, pneumoxpert-2.0, and this portfolio's own
+// source — reviewed for secrets/keys/client data before landing here (an
+// earlier candidate list was shown for sign-off first, see DONE.md).
+// Deliberately not sourced from Pet_Society's Chat/real-time-messaging
+// code (a teammate's work, not Kareem's, per Work.tsx's own note) or from
+// municipal-system/Django_Blog_Project (outside the repos CONTENT-LIVE.md
+// named as fair game).
 export const CODE_WORDS = [
-  "def handle_request(self):",
-  "async function fetchData() {",
-  "const [state, setState] = useState()",
-  "SELECT * FROM permissions",
-  "class Serializer(ModelSerializer):",
-  'git commit -m "fix"',
-  "try: ... except Exception as e:",
-  "return JsonResponse(data)",
-  "@login_required",
-  "useEffect(() => { ... })",
-  "CREATE TABLE workflows (",
-  "docker-compose up -d",
-  "export default function App()",
-  "if (user.isAuthenticated) {",
-  "migrations.RunPython(forwards)",
-  "ALTER TABLE orders ADD COLUMN",
-  "npm run build",
-  "const response = await fetch(url)",
+  "category_id = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), source=\"category\", write_only=True)",
+  "const { user, token } = response.data;",
+  "return obj.author == request.user",
+  "formData.append(\"image_data\", uploadedImage);",
+  "if (!context) throw new Error('useAuth must be used within an AuthProvider');",
+  "author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')",
+  "tl.to(sceneRoot.rotation, { y: sceneYaw, duration: settle.duration, ease: 'power1.out' }, settle.start);",
+  "const [prediction, setPrediction] = useState(null);",
+  "unique_together = ('follower', 'followed')",
+  "camera.position.set(...FADE_IN_CAMERA.position);",
+  "if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';",
+  "models.Index(fields=['post', '-created_at'])",
+  "raise ValidationError(\"Users cannot follow themselves\")",
+  "gsap.to(items, { opacity: 1, y: 0, scale: 1, duration: 0.5, stagger, ease: 'back.out(1.7)' });",
+  "return bool(request.user and request.user.is_superuser)",
+  "mediaQuery.addEventListener('change', handleChange);",
+  "const headBox = new THREE.Box3().setFromObject(headNode);",
+  "window.history.scrollRestoration = 'manual';",
 ] as const;
 
 // --- Contact section: exit from behind the monitor -------------------------

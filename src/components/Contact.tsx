@@ -74,6 +74,13 @@ export function Contact() {
     const email = String(data.get('email') ?? '').trim();
     const message = String(data.get('message') ?? '').trim();
 
+    // Honeypot — "EmailJS keys are public by design, so bots will find the
+    // endpoint." A real visitor never fills a field that's visually hidden
+    // (see the `company` input below); a script that fills every field
+    // will. Reject silently — no error state, nothing to tell a bot its
+    // submission didn't count.
+    if (String(data.get('company') ?? '').trim()) return;
+
     if (!EMAILJS_CONFIGURED) {
       window.location.href = buildMailtoUrl(name, email, message);
       return;
@@ -93,9 +100,11 @@ export function Contact() {
       form.reset();
       setTimeout(() => setStatus('idle'), 4000);
     } catch {
-      // Real send failed (bad keys, EmailJS outage, offline) — the
-      // visitor's message shouldn't just vanish, so fall back to the
-      // same mailto: this form always used before EmailJS existed.
+      // Real send failed (bad keys, EmailJS outage, offline) — "never show
+      // a bare error, always give the email address as the fallback": the
+      // button copy itself prints it (see below), and this still also
+      // tries to open it as a mailto: directly, same as this form always
+      // did before EmailJS existed.
       setStatus('error');
       window.location.href = buildMailtoUrl(name, email, message);
     }
@@ -211,6 +220,18 @@ export function Contact() {
             Send me a message
           </p>
 
+          {/* Honeypot — real visitors never see or fill this (off-screen,
+              not `display:none`/`type=hidden`, since some bots skip those
+              specifically). Checked in handleSubmit. */}
+          <input
+            type="text"
+            name="company"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            className="absolute left-[-9999px] h-0 w-0 opacity-0"
+          />
+
           <div className="flex flex-col gap-3 sm:flex-row">
             <label className="flex-1 font-body text-xs text-text-mid">
               Name
@@ -243,15 +264,21 @@ export function Contact() {
             />
           </label>
 
+          {/* Copy states per CONTENT-LIVE.md — the old idle copy
+              ("Send — opens your email client") described the pre-EmailJS
+              mailto: behavior and undersold a form that now actually
+              sends; the failure state prints the email address directly
+              rather than a bare "error," since a silently-vanished
+              message is worse than no form at all. */}
           <button
             type="submit"
             disabled={status === 'sending'}
             className="self-start rounded border border-surf-3 bg-surf-1 px-4 py-1.5 font-mono text-xs text-text-hi transition-colors hover:border-signal hover:text-signal disabled:opacity-60 sm:text-sm"
           >
             {status === 'sending' && 'Sending…'}
-            {status === 'sent' && 'Message sent'}
-            {status === 'error' && 'Failed — opening email client'}
-            {status === 'idle' && (EMAILJS_CONFIGURED ? 'Send message' : 'Send — opens your email client')}
+            {status === 'sent' && "Sent — I'll reply within a day or two"}
+            {status === 'error' && `Didn't send. Email me directly at ${EMAIL}`}
+            {status === 'idle' && 'Send message'}
           </button>
         </form>
       </div>

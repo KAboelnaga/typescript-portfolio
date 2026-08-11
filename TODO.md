@@ -5,6 +5,52 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Right now: unfinished from the last session
 
+- **2026-08-11 (18), done — see DONE.md for the full writeup.** Skills
+  tags reverted to hover-only colorize (dropped (17)'s scroll-triggered
+  permanent auto-colorize per Kareem's follow-up). About Me word-reveal's
+  real "gold turns nearly black in dark mode" bug root-caused (a
+  mid-session theme toggle left it playing back whichever theme's colors
+  were active when the pinned Hero timeline first built) and fixed with a
+  live repaint-in-place on toggle, instead of the unsafe fix of rebuilding
+  the whole pinned timeline. Also fixed a smaller related bug found while
+  verifying: `WordReveal.tsx`'s per-word inline color default was
+  stomping GSAP's live-rendered color on every unrelated re-render.
+- **2026-08-11 (17), done — see DONE.md for the full writeup.** Two
+  light-mode regressions from earlier this session fixed: Hero/About Me
+  text-shadow was hardcoded dark (fogged this theme's own dark text into
+  a grey smudge) — now reads `colors.void` from `useTheme()` so it's dark
+  in dark mode, light in light mode. Cursor was tied to theme-reactive
+  `text-hi` (rendered light-grey in light mode instead of black) — now a
+  fixed white source color, which is what makes `mix-blend-difference`
+  actually work in both themes. Also: the (15) Comfortable-tier additions
+  got real icons/colors fetched from simple-icons (Gunicorn/WSGI, SCSS,
+  Three.js, GSAP, React Hook Form, HTML5, and CSS — split out from
+  "HTML5/CSS3"), "DRF" renamed to "Django REST Framework", and every
+  colorless skill tag (Django Admin, REST APIs, Unit testing, Context
+  API, Role-based access control, Django REST Framework) now colorizes
+  to the site's own green accent instead of staying plain.
+- **2026-08-11 (16), done — see DONE.md for the full writeup.** The 18
+  reviewed `CODE_WORDS` lines from (15) written into `timeline.ts`.
+  Verified via live DOM state (real opacity/scale values tied to the
+  actual text), which surfaced a real, pre-existing bug: two overlapping
+  GSAP tweens fight over the same `opacity` property, so no word's
+  fade-in ever actually reaches full visibility (caps around 0.36) before
+  the fade-out starts pulling it back down. Predates this session, applies
+  to the old placeholder snippets too — flagged, not fixed (see "Waiting
+  on Kareem").
+- **2026-08-11 (15), done — see DONE.md for the full writeup.** Full
+  `CONTENT-LIVE.md` rewrite implemented (About Me, Hero title-card cut,
+  Work/Rustaq substantially rewritten with a real demo screenshot and
+  credentials, Projects cut to 3 cards + real 3-column grid, Skills
+  extended with DRF/seven Comfortable entries/a restored Concepts tier,
+  Contact copy states + honeypot). Also: a real regression found and
+  fixed in (13)'s monitor-screen recentering (was using node position
+  alone, not real geometry width — shifted content the wrong direction).
+  **Still open:** `CODE_WORDS` — 18 real candidate lines pulled from
+  `Pet_Society`/`pneumoxpert 2.0`/this repo and presented in chat per
+  CONTENT-LIVE.md's own instruction ("show me the list before writing
+  it") — not yet written into `timeline.ts`, needs Kareem's sign-off on
+  the specific lines first.
 - **2026-08-11 (14), done — see DONE.md for the full writeup.** Contact
   form now actually sends via EmailJS (real keys installed, verified
   end-to-end with a real test send) instead of only opening the
@@ -242,10 +288,9 @@ it hasn't been decided or started yet — tell Claude to do it.
   "not Kareem-confirmed" rather than fully closing it. `tokens.ts`'s
   `lightColor` export, the toggle mechanism, and every new
   Work/Projects/Skills/About/Background/Contact section all held up
-  cleanly forced into light mode. Unchanged caveat: the pinned About Me
-  word-reveal (`HeroTimeline.tsx`) bakes its colors in once at
-  construction, so toggling theme mid-session while already scrolled
-  into that beat won't retroactively recolor it.
+  cleanly forced into light mode. The stale-color caveat that used to be
+  here (pinned About Me word-reveal not recoloring on a mid-session
+  toggle) is fixed — see 2026-08-11 (18) in DONE.md.
 - **Mobile viewport checked twice now** — 2026-08-09 (10) found/fixed
   `SkipIntro`/`ThemeLightbulb` overlapping the Navbar's "Work" button at
   390px; 2026-08-10 (4) found/fixed Contact's text overlapping the Navbar
@@ -265,6 +310,15 @@ it hasn't been decided or started yet — tell Claude to do it.
 
 ## Waiting on Kareem
 
+- **CodeWordsOverlay fade tween bug** — found during (16)'s verification,
+  not fixed since it wasn't what was asked: the fade-in and fade-out
+  tweens for each flying word overlap and fight over the same `opacity`
+  property, capping every word around 0.36 opacity instead of the `1`
+  its own tween targets. Predates this session (same bug with the old
+  placeholder snippets, just never noticed). Fix would be sequencing them
+  properly (fade-out starting only once fade-in actually completes) or
+  using one `.to()` with a `yoyo`/keyframes instead of two competing
+  tweens.
 - **3D background room** (Kareem: "what do you think, can we do this
   easily?") — asked directly, see chat; short version: doable, but real
   scope (new geometry/lighting, not free), wants his go-ahead before

@@ -18,24 +18,25 @@ export interface Project {
   previewVideo?: string;
 }
 
-// Sourced from CONTENT.md (Kareem's own copy doc, 2026-08-09) — replaces
-// the earlier three-project grid entirely. Two real changes from before:
-// Zalando.it Product Scraper is gone (not in CONTENT.md at all — treated
-// as "do not invent filler" rather than kept as a guess), and Rustaq
-// Municipality System moved out of this grid into its own Work section
-// (see Work.tsx) since CONTENT.md gives it a full case-study treatment,
-// not a card. "Team lead" on Pet Society and Django Blog Platform is
-// Kareem's direct answer to CONTENT.md's own open question ("yes, team
-// lead for both") — Django Blog Platform's drafted "Solo" label was
-// provisional and got overridden by that answer.
+// Sourced from CONTENT-LIVE.md (2026-08-11), a rewrite of the original
+// CONTENT.md pass. Three projects now, not four — "Django Blog is cut:
+// Rustaq already demonstrates auth, roles and customised Django Admin at
+// real scale, and the blog invited a comparison it lost." Three across
+// also lays out cleanly at every breakpoint (3 columns desktop, 2 tablet,
+// 1 mobile). Card copy compressed to ~22 words each to suit the smaller
+// three-card format — do not re-expand it, the long versions were written
+// for full-width cards. `team lead` dropped from Pet Society too: "with
+// the blog cut, that label appeared on one card with nothing to contrast
+// against, and 'team project' plus a specific list of what you did says
+// more." Put it back only if it was a formally assigned role.
 export const projects: Project[] = [
   {
     slug: 'pet-society',
     name: 'Pet Society',
     year: '2025',
-    role: 'team lead',
+    role: 'team project',
     description:
-      'A social platform for pet owners — posts, following, comments, likes and messaging. Built authentication and the sign-up/login flows, profile pages, and dark mode across the app, plus most of the integration work: merge conflicts, auth bugs, and cross-cutting fixes.',
+      'Social platform for pet owners. I built auth and the login flows, profile pages, dark mode, and most of the integration and bug-fix work.',
     note: "Real-time messaging was a teammate's work.",
     stack: ['Django', 'React', 'PostgreSQL', 'Tailwind'],
     repoUrl: 'https://github.com/KAboelnaga/Pet_Society',
@@ -48,8 +49,8 @@ export const projects: Project[] = [
     year: '2026',
     role: 'frontend & integration',
     description:
-      'A React client for a pneumonia classifier that returns heatmap overlays. Rewrote the 2024 original with a reusable component architecture and redeployed the 1.3GB inference container against the new frontend.',
-    note: "Team graduation project. The model is my team's work — mine is the frontend, integration and deployment.",
+      'React client for a pneumonia classifier returning heatmap overlays. Rewrote the 2024 original as reusable components and redeployed its 1.3 GB inference container.',
+    note: "Team graduation project — the model is my team's work.",
     stack: ['React', 'Vite', 'REST API', 'Docker'],
     repoUrl: 'https://github.com/KAboelnaga/pneumoxpert-2.0',
     previewUrl: 'https://pneumoxpert-2-0.vercel.app',
@@ -62,21 +63,10 @@ export const projects: Project[] = [
     role: 'frontend',
     description:
       'A supplied Figma design built as a near pixel-perfect responsive UI on the TMDB API, with dark mode and client-side search and filtering.',
-    note: 'Design supplied as an ITI coursework brief — implementation is mine.',
+    note: 'Design supplied as an ITI brief — implementation is mine.',
     stack: ['React', 'Bootstrap', 'TMDB API'],
     repoUrl: 'https://github.com/KAboelnaga/Movie-App',
     previewUrl: 'https://movie-app-mauve-xi.vercel.app',
     previewImage: '/previews/movies.png',
-  },
-  {
-    slug: 'django-blog-platform',
-    name: 'Django Blog Platform',
-    year: '2025',
-    role: 'team lead',
-    description:
-      'Multi-author blog with authentication and role-based permissions on a customized Django admin.',
-    stack: ['Django', 'PostgreSQL', 'Bootstrap'],
-    repoUrl: 'https://github.com/KAboelnaga/Django_Blog_Project',
-    previewImage: '/previews/blog.png',
   },
 ];

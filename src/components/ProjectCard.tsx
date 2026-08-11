@@ -22,6 +22,13 @@ import { ProjectPreviewPopup } from './ProjectPreviewPopup';
  * (still can't nest the two real links inside one). Guarded to ignore
  * clicks that originate from an actual link/button inside the card, so
  * clicking "view repo" only ever opens the repo, never both.
+ *
+ * "Bind tap as well: hover doesn't exist on touch devices" (CONTENT-LIVE.md)
+ * — the preview popup used to only ever trigger on `onMouseEnter`, so a
+ * phone visitor got no visual evidence at all, ever. `onTouchStart` fires
+ * the same `onEnter` a real hover would; the outbound links still open in
+ * a new tab regardless of input method, so the popup stays visible on the
+ * original tab rather than needing to be dismissed first.
  */
 export function ProjectCard({ project }: { project: Project }) {
   const [hovered, setHovered] = useState(false);
@@ -58,6 +65,7 @@ export function ProjectCard({ project }: { project: Project }) {
         ref={cardRef}
         onMouseEnter={onEnter}
         onMouseLeave={() => setHovered(false)}
+        onTouchStart={onEnter}
         onClick={onCardClick}
         onKeyDown={onCardKeyDown}
         tabIndex={primaryUrl ? 0 : undefined}

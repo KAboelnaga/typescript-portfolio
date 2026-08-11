@@ -4,6 +4,274 @@ Newest first. One entry per work session/iteration — appended when a stage
 or notable change ships, not for every small edit. See [TODO.md](./TODO.md)
 for what's still open.
 
+## 2026-08-11 (18) — Skills tags reverted to hover-only colorize (no more permanent auto-colorize on scroll); About Me word-reveal's stale-theme-color bug root-caused and fixed properly (a live re-render on toggle, not a rebuild of the pinned Hero timeline)
+
+Two follow-ups from (17)'s work, both from Kareem re-testing dark/light
+mode back to back.
+
+**Skills: "make the skills not colored until hover."** Reverses (17)'s
+own scroll-into-view auto-colorize (`once: true` ScrollTrigger that
+permanently latched every tag colored the first time it scrolled into
+view) back to a pure hover in/out effect, letter-by-letter left-to-right
+on enter and right-to-left on leave, every time, for every tag.
+`SkillTag.tsx` dropped ScrollTrigger entirely — GSAP tweens driven
+directly off `onMouseEnter`/`onMouseLeave` now, no scroll wiring, no
+"unlocked" state to track.
+
+**About Me word-reveal: fixed the real bug behind "it's in gold then
+turns nearly black" in dark mode.** Root cause: `HeroTimeline.tsx`'s
+word-by-word brighten tween read `colors.textLow`/`textHi` from
+`useTheme()` once, baked into the GSAP tween when the pinned timeline is
+built, and — by design, per a real prior bug (2026-08-11, "toggling
+dark/light mode changes where I'm standing on the site") — never
+rebuilds on a theme toggle, because rebuilding the *entire* effect
+re-creates the whole ScrollTrigger/pinned camera from scratch, visibly
+resetting scroll position. So a mid-session toggle left this one word
+animation stuck playing back whichever theme was active when the pin
+first mounted — surfaced as light mode's brownish `textLow`/near-black
+`textHi` rendering during an actual dark-mode session. Fixed without
+touching that already-correct tradeoff: the per-word tweens now read
+`color: () => colorsRef.current.textLow/.textHi` (function-based GSAP
+values, re-evaluated on demand) instead of the plain captured values,
+and a small separate effect — reacting to `colors` only, not rebuilding
+the massive pinned timeline — calls `tl.invalidate()` +
+`tl.render(tl.time(), true, true)` on every toggle to force GSAP to
+recompute and repaint every word's color from its *current* reveal
+progress against the new theme, in place. Verified via Playwright:
+sampled each word's color as a 0–1 fraction between that theme's
+low/high before and after a live toggle (both directions, dark→light and
+light→dark) at a scroll position with words in all three states (fully
+dim, fully bright, mid-interpolation) — fractions matched within ~0.05
+(8-bit rounding) after toggling, meaning every word repaints with the
+new theme's colors *without* losing its scroll progress. Also found and
+fixed a second, smaller bug in the same area while verifying:
+`WordReveal.tsx` gave every word span a React-rendered inline
+`style={{ color: colors.textLow }}` default that re-applied on every
+render where its own `useTheme()` value changed (any toggle) — stomping
+whatever color GSAP had imperatively rendered back to the theme's
+default `textLow`, since inline styles set by React reconciliation
+override a GSAP tween's direct DOM write until the next scroll event.
+Switched that default to a `text-text-low` class (a live CSS var,
+already the pattern used elsewhere in this codebase, e.g. SkillTag's
+signal-color fallback) — React never touches `color` on that element
+again after first paint, so it can't fight GSAP's own writes.
+
+Also chased what looked like a *third* bug — the 3D canvas appearing to
+stay black behind the character even after toggling to light mode — and
+confirmed via direct pixel sampling (not just eyeballing a screenshot)
+that this was a false alarm: `Scene.tsx`'s `colors.void` background/fog
+genuinely does update correctly (confirmed both via a live console probe
+and sampling known-empty background pixels, which read the correct
+cream `#F5F3EF`). What reads as "still dark" is the character/desk
+geometry itself — deliberately lamp-lit and dark-toned regardless of
+theme, part of the scene's existing dark-first visual identity, not a
+background bug.
+
+Verified: `npx tsc -b`, `npx oxlint src/`, `npm run build` all clean.
+Playwright throughout — computed-style hover checks for the Skills
+reversal, and the fraction-preservation toggle test plus screenshots
+(both themes, both toggle directions) for the word-reveal fix.
+
+## 2026-08-11 (17) — Two real light-mode regressions from earlier this session found and fixed (Hero/About text fogged illegible, cursor rendering light-grey instead of black); Skills' new Comfortable-tier additions given real icons/colors, DRF renamed, and every colorless tag now colorizes to the site's own green instead of staying plain
+
+Kareem caught two light-mode regressions from this session's own earlier
+work, plus asked for the new skill tags (added in (15)) to actually get
+their icons/colors rather than sitting as plain text.
+
+**Hero/About Me text: theme-aware text-shadow, not a hardcoded dark one.**
+(14)'s mobile-legibility fix added a `text-shadow` so the name/About Me
+text stayed readable over the character regardless of what's behind it —
+but hardcoded it to a *dark* color, which is exactly backwards in light
+mode: that theme's text (`text-hi`/`text-mid`) is *also* dark, so a dark
+halo just fogged it into a grey smudge instead of protecting it. Fixed by
+reading `colors.void` (the active theme's own page-background color) from
+`useTheme()` instead of a fixed value — dark halo in dark mode (light text
+needs protection from lit monitor/desk areas), light halo in light mode
+(dark text needs protection from the character, who stays a dark
+silhouette in *both* themes since his material isn't theme-reactive).
+Confirmed via computed style, not just eyeballed: `text-shadow` now reads
+back `rgb(245, 243, 239)` (light mode's own void color) instead of the old
+fixed dark rgba, and the name renders crisp and dark in a light-mode
+screenshot.
+
+**Cursor: fixed to always-white source color, not the theme-reactive
+`text-hi`.** "The cursor and its outline are light grey in light mode,
+let me see them in black." `mix-blend-difference` only reads as black
+when the *source* color is white and the backdrop is light — `text-hi`
+breaks this because it's deliberately theme-reactive for *reading text*
+(dark in light mode), and a dark source against light mode's light
+background differences out to light grey, backwards from what the blend
+mode needs. Swapped to a fixed white source (`bg-[#fff]`/`border-[#fff]`
+— this project's Tailwind `colors` config replaces the default palette,
+so there's no `white` utility to reach for) — white differences to
+near-black against light mode's light background and near-white against
+dark mode's dark one, correct in both without needing theme-awareness at
+all, which is the standard reason this technique normally uses a fixed
+color in the first place.
+
+**Skills: the (15) Comfortable-tier additions given real icons/colors,
+plus every colorless tag colorized.** "Color the added skills and add
+icons if there are any... DRF stands for Django REST Framework, change
+it... make the text in skills with no colors [be] colored with the green
+color the website have." Fetched real icon+color data from simple-icons'
+own repo for seven of the eight new tags (not retyped from memory, to
+avoid a wrong mark) — Gunicorn/WSGI, SCSS (via the Sass mark, the real
+logo for both syntaxes), Three.js, GSAP (via GreenSock), React Hook Form,
+and split "HTML5/CSS3" into two real tags with their own separate marks
+(one pill can't show two logos). Named the split one "CSS" not "CSS3" —
+simple-icons doesn't carry the old W3C "CSS3" shield under that name
+anymore, and labeling a different mark "CSS3" would be its own small
+dishonesty. "DRF" spelled out to "Django REST Framework" (no separate
+logo exists for it, confirmed against the same data rather than assumed).
+`SkillTag.tsx`'s colorize mechanism (hover + the existing scroll-into-view
+auto-colorize) used to just skip entirely for anything absent from
+skillColors.ts (Django Admin, REST APIs, Unit testing, Context API,
+Role-based access control, and now Django REST Framework) — extended it
+to fall back to the site's own `signal` accent (resolved live from the
+CSS var, so it tracks the active theme) instead of skipping, so every tag
+colorizes now, real brand or the site's own green. Confirmed via computed
+style: `rgb(82, 163, 152)` — the resolved `--color-signal` value — on
+every one of the colorless tags after their scroll-triggered colorize
+fired.
+
+Verified: `npx tsc -b`, `npx oxlint src/`, and `npm run build` all clean.
+Playwright pass throughout — light-mode Hero/About screenshotted crisp
+(not just re-checked in dark mode), cursor outline checked over a nav
+link in light mode, and Skills' new icons/colors and green-fallback
+colorization confirmed via both screenshot and direct computed-style
+reads (not just visual impression, which at this screenshot scale was
+genuinely hard to judge by eye for the green-vs-grey distinction).
+
+## 2026-08-11 (16) — CODE_WORDS' 18 real lines written into timeline.ts (Kareem signed off on the (15) candidate list); a real, pre-existing animation bug noticed and flagged, not fixed
+
+One-line ask ("write them into the code") following the candidate list
+(15) presented for review — written verbatim into `CODE_WORDS` in
+`timeline.ts`, replacing the generic placeholder snippets. Updated the
+doc comment above it to explain the sourcing (and what was deliberately
+excluded — Pet Society's Chat code, a teammate's work not Kareem's; the
+private `municipal-system`/`Django_Blog_Project` repos, outside what
+CONTENT-LIVE.md named as fair game).
+
+**Verified properly, not just typed in and assumed correct.** Static
+screenshots at guessed scroll fractions kept landing between individual
+words' brief visibility windows (each word's own tween window is only
+~5% of the whole codeWords beat, 18 words packed tight) — rather than
+keep guessing, read the actual DOM state directly instead: sampled
+computed `opacity`/`transform` on every `CodeWordsOverlay` span across a
+fine-grained scroll sweep and confirmed real text values animating
+through genuinely changing opacity and scale (e.g. the DRF serializer
+line reaching opacity 0.37 at scale 1.4 mid-tween) — proof the new
+content is wired in and animating, not just sitting inert in the array.
+
+**Found, while doing that verification, a real bug that predates this
+change** and isn't part of what was asked this turn, so not touched:
+across the entire fine-grained sweep, no word's opacity ever exceeded
+about 0.36, well short of the `1` its own tween targets. Root cause
+visible directly in the existing (unmodified) tween setup: the fade-in
+`fromTo` (0 → 1 opacity) and the fade-out `to` (→ 0 opacity) are two
+separate tweens on the same timeline that intentionally overlap for the
+last 40% of each word's duration, both acting on the same `opacity`
+property concurrently — the later-added fade-out tween wins each shared
+frame, so the fade-in never gets to actually finish reaching full
+visibility before the fade-out starts pulling it back down. Applies
+equally to the old placeholder snippets, so this isn't new — just never
+noticed before because nobody had checked computed opacity values
+directly. Flagged in TODO.md rather than fixed, since it wasn't asked
+for.
+
+Verified: `npx tsc -b`, `npx oxlint src/`, and `npm run build` all clean.
+
+## 2026-08-11 (15) — CONTENT-LIVE.md's full content rewrite implemented; a real regression found and fixed in the monitor-screen recentering from (13); Skills tiers extended (DRF, seven Comfortable additions, a restored Concepts tier); Projects grid actually goes 3-across on desktop now
+
+Kareem sent a full rewrite of the site's copy (`CONTENT-LIVE.md`'s
+companion doc, source of truth for this pass) and asked to see the
+result. Two more direct asks landed mid-session — the monitor screen
+again, and a Skills tiers extension — both folded in alongside.
+
+**Monitor-screen recentering (13): found and fixed a real regression, not
+just a follow-up.** Kareem: "the text on the monitor... is outside the
+scope of the monitor." (13)'s "fix" used each content node's `.position`
+alone as a stand-in for its center — wrong: these bars are anchored at
+one edge, not their geometric center, so averaging `.position` values
+biases toward wherever bars *start*, not where the content actually
+sits. Recomputed using each node's real `geometry.boundingBox` this
+time (accounts for how wide a bar actually is, not just where it
+starts) and found the content's *true* width already matched the
+screen's width almost exactly — it was never too big, just shifted
+right by 0.063 units, and (13)'s fix shifted it *further* right instead
+of left, a real regression confirmed live via screenshot before and
+after. Fixed for real in `Character.tsx`, same runtime-computed-delta
+approach, correct inputs this time.
+
+**Content rewrite, section by section, per CONTENT-LIVE.md:**
+- **Meta tags**: title/description already matched; added the missing
+  OG/Twitter image tags plus a real `og-image.png` (a static production
+  build screenshot of the settled Hero framing — a dev-mode debug overlay
+  was in the way of the first attempt, resolved by capturing from
+  `vite preview` instead of the dev server).
+- **About Me**: cut the opening sentence, which turned out to be
+  word-for-word the Hero title's third line — a real duplication a reader
+  would hit twice in one scroll.
+- **Hero code fly-through's title card removed** (`ProjectsGlimpseOverlay`)
+  — "Projects I've built" sat seconds before the real Projects section's
+  "Things I've built," saying the same thing twice. Deleted the component
+  and unthreaded its ref through `Hero.tsx`/`Scene.tsx`/`HeroTimeline.tsx`
+  entirely rather than leaving a dead prop chain; kept the overlay's own
+  fade-to-opaque (unrelated to the heading, still needed for the cut to
+  the real Projects section).
+- **Work/Rustaq rewritten substantially**: stack tags gained SQLite and
+  Shared hosting; an outcome line under the stats strip; four body
+  paragraphs (was two) covering the original 4-month engagement *and* a
+  2026 solo return a year later (modules, English i18n, notifications,
+  task routing); a real inline screenshot from the demo instance (logged
+  in live via the credentials Kareem provided, confirmed they're real and
+  scoped to sample data — screenshot saved to `public/previews/`); swapped
+  the vague "Live (login required)" link for the actual demo credentials,
+  printed next to the link; dropped the repo link (client's codebase,
+  private).
+- **Projects cut from four cards to three** (Django Blog Platform
+  removed), copy compressed to ~22 words each, `team lead` → `team
+  project` on Pet Society, scope notes reworded. Grid actually goes
+  3-across on desktop now (`lg:grid-cols-3` added) — the old 2-column cap
+  had no wider step because four cards read fine as 2×2; three cards
+  need the third column CONTENT-LIVE.md asked for. Also added `onTouchStart`
+  to `ProjectCard`'s hover-preview trigger — "hover doesn't exist on touch
+  devices," so phone visitors previously got zero visual evidence, ever.
+- **Skills**: TypeScript → Comfortable (already done in (13)/(14)); this
+  pass added DRF to Daily, seven more entries to Comfortable
+  (Gunicorn/WSGI, Context API, React Hook Form, SCSS, HTML5/CSS3,
+  Three.js, GSAP — Kareem's direct follow-up ask), and restored a
+  `Concepts` tier (a separate axis from the proficiency ladder, not
+  another rung on it) led by Role-based access control. All render as
+  plain-text tags, no icons — none of these are in the vendored
+  simple-icons set yet, and fabricating brand marks from memory isn't
+  something to risk.
+- **Contact form**: copy states rewritten (idle "Send message", sending
+  "Sending…" disabled, success "Sent — I'll reply within a day or two",
+  failure prints the email address directly rather than a bare "error").
+  Added a honeypot field (`company`, visually off-screen, checked and
+  silently rejected in `handleSubmit`) — "EmailJS keys are public by
+  design, so bots will find the endpoint."
+
+**Deliberately not done yet: `CODE_WORDS`.** CONTENT-LIVE.md is explicit —
+"show me the list before writing it." Cloned-locally `Pet_Society` and
+`pneumoxpert 2.0` (both already present in `~/Developer`, no fresh clone
+needed) read for 18 real single-line candidates covering the requested
+categories (DRF serializer, permission class, auth flow, custom hook,
+API integration, GSAP timeline, R3F camera keyframe, plus more spanning
+models/validation/dark-mode/state) — deliberately avoided the Chat/
+real-time-messaging code (credited to a teammate, not Kareem, per the
+site's own project notes) and the `Django_Blog_Project`/`rustaq` repos
+(outside the three sources CONTENT-LIVE.md named). List presented in
+chat for review, `timeline.ts` untouched pending Kareem's sign-off.
+
+Verified: `npx tsc -b`, `npx oxlint src/`, and `npm run build` all clean.
+Playwright pass against the real dev server throughout — monitor
+recentering confirmed via both live geometry readout (content bounds now
+match screen bounds almost exactly on both axes) and screenshot at two
+camera distances; every rewritten section screenshotted; Skills tiers
+screenshotted showing all new entries; Projects grid confirmed 3-across.
+
 ## 2026-08-11 (14) — Contact form now actually sends (EmailJS, real keys installed and test-verified end to end); first mobile pass — two real "stuck" overlap bugs fixed (Hero/About Me text vs. the character, Contact's WhatsApp link vs. the lightbulb widget), rest of the site checked clean
 
 Kareem picked EmailJS (recommended) for real sending and "you investigate
