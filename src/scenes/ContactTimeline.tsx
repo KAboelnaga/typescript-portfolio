@@ -51,12 +51,28 @@ const CURSOR_FOLLOW_UP_LIMIT = 0.19;
 // `sceneYaw` ("limited"). Duration raised (0.7 -> 0.9) alongside the
 // 2026-08-10 ease change below — "a smoother animation of the release."
 // Range roughly tripled (0.5 -> 1.5 rad, ~29° -> ~86°) — "increase the
-// range of him rotating a lot." Pitch dropped entirely (used to be a
-// second, independent 0.35 rad range from vertical drag) — see
-// `onPointerMoveDrag`'s own comment for why.
+// range of him rotating a lot." Pitch was dropped once (used to be
+// derived from the *same* diagonal drag vector as yaw, which spun the
+// object around a tilted, off-vertical composite axis instead of a clean
+// turn) then brought back 2026-08-11 ("I want all direction rotation").
+// Bringing it back the *first* time by setting `.rotation.x`/`.rotation.y`
+// directly (Euler) turned out to have the same root problem in a subtler
+// form: `sceneYaw` alone is already up to ~210°, and Euler axes aren't
+// independent once one of them is that large — composing a further
+// `.rotation.x` on top skews which way "pitch" actually points, which is
+// exactly the "it moves in a weird way with an angle... shifted" bug
+// reported right after. Fixed for real in `onPointerMoveDrag` below by
+// composing yaw and pitch as quaternions built from fixed *world* axes
+// instead — pitch is always a true world-space nod applied after yaw, so
+// it reads the same regardless of how far the object has already turned.
+// Pitch range kept tighter than yaw's — tipping the whole desk+character
+// group too far reads as broken in a way turning it doesn't.
 const DRAG_SENSITIVITY = 0.006;
 const DRAG_YAW_RANGE = 1.5;
+const DRAG_PITCH_RANGE = 0.5;
 const SPRING_BACK_DURATION = 0.9;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const WORLD_RIGHT = new THREE.Vector3(1, 0, 0);
 
 interface Props {
   pinRef: RefObject<HTMLDivElement | null>;
@@ -240,16 +256,43 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
     // different nodes so they don't fight each other:
     // - Press-and-drag rotates the *whole object* (sceneRoot — desk,
     //   monitor, and character together) around its settled orientation,
-    //   yaw only (see the "y axis... moves with an angle" comment on
-    //   `onPointerMoveDrag` below), and springs back to exactly that
-    //   settled orientation the instant the mouse releases.
+    //   yaw *and* pitch (see `onPointerMoveDrag` below), and springs back
+    //   to exactly that settled orientation the instant the mouse
+    //   releases.
     // - When not dragging, only the isolated headPivot (see Character.tsx)
     //   subtly turns toward the cursor — "his face only to be moving," not
     //   the whole body.
     const dom = gl.domElement;
     let dragging = false;
     let startClientX = 0;
-    let baseYaw = sceneYaw;
+    let startClientY = 0;
+    // The one resting orientation everything springs back to — fixed, not
+    // reassigned per-drag. Yaw/pitch during a drag are tracked as *offsets*
+    // from this (see `applyOffsets` below) rather than by reading the
+    // object's live `.rotation`/`.quaternion` back — the composed
+    // orientation doesn't decompose cleanly into "current yaw"/"current
+    // pitch" once both are non-zero, so offsets are the only reliable
+    // source of truth for where a new drag or spring-back should resume.
+    const baseYaw = sceneYaw;
+    let liveYawOffset = 0;
+    let livePitchOffset = 0;
+    let springTween: gsap.core.Tween | null = null;
+
+    // Composes yaw and pitch as quaternions built from fixed *world* axes
+    // — yaw applied first, pitch on top of it — rather than setting raw
+    // `.rotation.x`/`.rotation.y` Euler values directly. `sceneYaw` alone
+    // is already up to ~210°, and Euler axes aren't independent once one
+    // of them is that large: setting `.rotation.x` on top of a big
+    // `.rotation.y` skewed which way "pitch" actually pointed, which read
+    // as the object moving "with an angle" and shifting sideways instead
+    // of tilting in place. World-axis quaternions keep pitch a true
+    // camera-facing nod no matter how far yaw has already turned.
+    function applyOffsets(yawOffset: number, pitchOffset: number) {
+      if (!sceneRoot) return;
+      const yawQuat = new THREE.Quaternion().setFromAxisAngle(WORLD_UP, baseYaw + yawOffset);
+      const pitchQuat = new THREE.Quaternion().setFromAxisAngle(WORLD_RIGHT, pitchOffset);
+      sceneRoot.quaternion.copy(pitchQuat.multiply(yawQuat));
+    }
 
     // "The cursor follow shouldn't be after I reach [the end of the
     // scroll] — it should be after it [the object] reaches the desired
@@ -269,32 +312,43 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       if (!settled() || !sceneRoot) return;
       dragging = true;
       startClientX = e.clientX;
-      // Read back the *current* resting yaw rather than assuming it's
-      // still `sceneYaw` — a still-finishing spring-back tween from a
-      // previous drag could otherwise get clobbered mid-flight.
-      baseYaw = sceneRoot.rotation.y;
-      gsap.killTweensOf(sceneRoot.rotation);
+      startClientY = e.clientY;
+      // Cut off a still-finishing spring-back from a previous drag and
+      // snap straight to the resting pose before this one starts, rather
+      // than trying to resume from wherever the tween had gotten to — see
+      // the `liveYawOffset`/`livePitchOffset` comment above for why that
+      // can't be read back reliably once pitch is involved. The window
+      // where this is even visible is tiny (re-grabbing mid-spring-back,
+      // sub-second), and clean beats subtly wrong.
+      springTween?.kill();
+      springTween = null;
+      liveYawOffset = 0;
+      livePitchOffset = 0;
+      applyOffsets(0, 0);
       dom.setPointerCapture(e.pointerId);
       dom.style.cursor = 'grabbing';
     }
     function onPointerMoveDrag(e: PointerEvent) {
       if (!dragging || !sceneRoot) return;
-      // "The y axis that the object rotates upon needs fixing, I don't
-      // like that the object moves with an angle" — this used to also
-      // pitch (rotation.x) from vertical drag movement, so a diagonal
-      // drag spun the object around a tilted, off-vertical axis instead
-      // of a clean turn. Yaw only now — horizontal drag distance, however
-      // the pointer actually moved.
+      // Yaw and pitch each read from their own drag axis (horizontal ->
+      // yaw, vertical -> pitch) independently, rather than from one
+      // combined drag vector — that's what keeps a diagonal drag turning
+      // *and* tilting cleanly instead of spinning around a single tilted,
+      // off-vertical composite axis.
       //
       // "I would like for him to rotate in the same direction I pull him
       // to" — verified empirically (Playwright + real drag gestures, not
-      // guessed): the *previous* sign turned the object's front *away*
-      // from the viewer when dragging right (and toward-camera, revealing
-      // his face, when dragging left) — backwards from "drag right, he
-      // turns right." Negated to match.
-      const dYaw = -(e.clientX - startClientX) * DRAG_SENSITIVITY;
-      const yawOffset = Math.min(Math.max(dYaw, -DRAG_YAW_RANGE), DRAG_YAW_RANGE);
-      sceneRoot.rotation.y = baseYaw + yawOffset;
+      // guessed): dragging right turns his front toward the viewer's
+      // right, dragging down tilts the top of the object toward the
+      // viewer (same "pull it toward you" feel as the head's own
+      // cursor-follow pitch below).
+      const dYaw = (e.clientX - startClientX) * DRAG_SENSITIVITY;
+      liveYawOffset = Math.min(Math.max(dYaw, -DRAG_YAW_RANGE), DRAG_YAW_RANGE);
+
+      const dPitch = (e.clientY - startClientY) * DRAG_SENSITIVITY;
+      livePitchOffset = Math.min(Math.max(dPitch, -DRAG_PITCH_RANGE), DRAG_PITCH_RANGE);
+
+      applyOffsets(liveYawOffset, livePitchOffset);
     }
     function onPointerUp(e: PointerEvent) {
       if (!dragging) return;
@@ -303,11 +357,17 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       if (sceneRoot) {
         // "Make him return back to his position on release" — unchanged
         // from before, still a single smooth deceleration straight back
-        // to the settled orientation, no bounce/overshoot.
-        gsap.to(sceneRoot.rotation, {
-          y: baseYaw,
+        // to the settled orientation (now on both axes at once), no
+        // bounce/overshoot. Tweens the offset scalars (through the same
+        // `applyOffsets` the live drag uses), not `.rotation`/`.quaternion`
+        // directly, so the two stay in perfect sync.
+        const proxy = { yaw: liveYawOffset, pitch: livePitchOffset };
+        springTween = gsap.to(proxy, {
+          yaw: 0,
+          pitch: 0,
           duration: SPRING_BACK_DURATION,
           ease: 'power3.out',
+          onUpdate: () => applyOffsets(proxy.yaw, proxy.pitch),
         });
       }
       try {
@@ -351,6 +411,7 @@ export function ContactTimeline({ pinRef, overlayRef, textRef, upperBody, sceneR
       window.removeEventListener('pointermove', onPointerMoveDrag);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('mousemove', onMouseMove);
+      springTween?.kill();
       st.kill();
       tl.kill();
     };

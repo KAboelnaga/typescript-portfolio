@@ -3,8 +3,9 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { useTheme } from '../theme/ThemeContext';
+import { color as themeColor } from '../theme/tokens';
 
-const MODEL_PATH = '/models/light-bulb.glb';
+const MODEL_PATH = '/models/incandescent_light_bulb.glb';
 useGLTF.preload(MODEL_PATH);
 
 const IDLE_SPIN_SPEED = 0.25; // rad/s
@@ -24,12 +25,44 @@ const CLICK_MOVE_THRESHOLD = 5; // px — below this, a pointerup counts as a cl
 const TILT_MAX = 0.48; // rad, either axis
 const TILT_EASE = 0.14; // per-frame damping toward the target tilt
 
-// "glass" and "tungsten" (see models-source/light-bulb.glb's own material
-// names) are the only two materials with an emissiveFactor baked in —
-// everything else (brass, insulator, wire) is structural and untouched.
-const EMISSIVE_MATERIAL_NAMES = new Set(['glass', 'tungsten']);
+// "wire_spiral" (see incandescent_light_bulb.glb's own material names) is
+// the filament — the only material with an emissiveFactor baked in. The
+// glass shell uses KHR_materials_transmission instead (no emissive of its
+// own), which is actually more physically correct here: the glow reads as
+// light passing through the glass from the filament inside it, rather than
+// the glass itself lighting up.
+const EMISSIVE_MATERIAL_NAMES = new Set(['wire_spiral']);
 
-type EmissiveMaterial = THREE.Material & { emissiveIntensity?: number };
+type EmissiveMaterial = THREE.Material & {
+  emissiveIntensity?: number;
+  emissive?: THREE.Color;
+  color?: THREE.Color;
+  metalness?: number;
+  roughness?: number;
+};
+
+// wire_spiral's own baked emissiveFactor is pure white ([1,1,1] — see the
+// EMISSIVE_MATERIAL_NAMES comment above), so scaling emissiveIntensity
+// alone glows white/washed-out rather than the warm incandescent amber the
+// old light-bulb.glb had (its "tungsten"/"glass" emissiveFactor was
+// [1, ~0.16-0.4, ~0.003-0.09] — genuinely orange). Overriding the color
+// here, once, at load — same warm tone, filament-appropriate — keeps that
+// look without touching the glTF file itself.
+const FILAMENT_GLOW_COLOR = new THREE.Color(1, 0.45, 0.12);
+
+// "Material.003"/"Material.004" are the screw base and its neck cap — the
+// only structural (non-glass, non-filament) parts. Both came out of the
+// model near-black (baseColorFactor ~0.05-0.28 grey — see the material
+// dump this was checked against), which no amount of scene-light intensity
+// could lift much: a near-black diffuse albedo absorbs almost all incoming
+// light regardless of how bright the source is, so "too dark, can't see
+// it" (2026-08-11 feedback) was the material itself, not the lighting.
+// Recoloring to the site's own `lamp` accent (warm amber-gold — the same
+// tone already used for this button's own lit-state glow shadow below)
+// reads as a brass Edison-screw base and stays legible against both
+// themes' dark-mode background, without needing a much brighter scene.
+const BASE_METAL_MATERIAL_NAMES = new Set(['Material.003', 'Material.004']);
+const BASE_METAL_COLOR = new THREE.Color(themeColor.lamp);
 
 /**
  * "I have attached a 3d light bulb in models-source, use it in navbar and
@@ -83,8 +116,14 @@ function Bulb({
       const list = Array.isArray(mat) ? mat : [mat];
       for (const m of list) {
         if (EMISSIVE_MATERIAL_NAMES.has(m.name)) {
+          m.emissive?.copy(FILAMENT_GLOW_COLOR);
           m.emissiveIntensity = 0.1;
           mats.push(m);
+        }
+        if (BASE_METAL_MATERIAL_NAMES.has(m.name)) {
+          m.color?.copy(BASE_METAL_COLOR);
+          if (m.metalness !== undefined) m.metalness = 0.75;
+          if (m.roughness !== undefined) m.roughness = 0.32;
         }
       }
     });
@@ -210,10 +249,22 @@ export function ThemeLightbulb() {
           : 'shadow-[0_10px_28px_-6px_rgba(0,0,0,0.65)]'
       }`}
     >
-      <Canvas camera={{ fov: 38 }} gl={{ alpha: true, antialias: true }}>
-        <ambientLight intensity={0.7} />
-        <pointLight position={[1, 1.2, 2]} intensity={1.4} />
-        <pointLight position={[-1.2, -0.6, 1.4]} intensity={0.35} color="#7fb3ff" />
+      <Canvas camera={{ fov: 38 }} gl={{ alpha: true, antialias: true, toneMappingExposure: 1.6 }}>
+        <ambientLight intensity={1.8} />
+        <pointLight position={[1, 1.2, 2]} intensity={2.6} />
+        <pointLight position={[-1.2, -0.6, 1.4]} intensity={0.7} color="#7fb3ff" />
+        {/* incandescent_light_bulb.glb's glass ("Material", see the
+            EMISSIVE_MATERIAL_NAMES comment above) is near-mirror smooth
+            (roughness 0) with real transmission — it needs a light source
+            positioned to actually catch it, not just ambient fill, or it
+            (and the dark socket/base materials next to it) reads as a flat
+            silhouette, especially against the dark-mode background. A key
+            light from above and slightly to the side gives it the same
+            catch-light streak a real glass bulb photographed under an
+            overhead lamp would have, and lifts the socket enough to read
+            as an object even when off ("appear more in dark mode" — see
+            2026-08-11 feedback after the model swap). */}
+        <pointLight position={[0.6, 2.4, 1.2]} intensity={3.6} color="#fff3e0" />
         <Bulb lit={lit} dragRef={dragRef} tiltRef={tiltRef} />
       </Canvas>
     </button>
