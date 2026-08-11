@@ -11,6 +11,7 @@ not the other way around.
 - **What's next / open questions:** [TODO.md](./TODO.md) — check here (and
   DONE.md) before asking whether something is already planned.
 - **Swapping a project's preview image/video:** [PROJECT_PREVIEWS.md](./PROJECT_PREVIEWS.md)
+- **What every component does:** [COMPONENTS.md](./COMPONENTS.md)
 
 ## Stack
 
